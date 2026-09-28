@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Zawolf AI — Live E-Commerce Storefront</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; margin: 0; padding: 24px; color: #0f172a; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    p.subtitle { color: #64748b; margin-top: 0; margin-bottom: 24px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+    .tab-btn { background: none; border: none; font-size: 14px; font-weight: 600; color: #64748b; padding: 8px 16px; cursor: pointer; border-radius: 6px; }
+    .tab-btn.active { background: #0f172a; color: #fff; }
+    .grid { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; width: 170px; flex-shrink: 0; padding: 10px; text-align: center; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .card img { width: 100%; height: 160px; object-fit: cover; border-radius: 8px; }
+    .card .name { font-size: 13px; font-weight: bold; margin: 8px 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card .meta { font-size: 11px; color: #64748b; }
+    .badge { font-size: 10px; display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-top: 6px; background: #e0f2fe; color: #0369a1; }
+    
+    /* تفاصيل صفحة المنتج والتوصيات */
+    .pdp-box { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; margin-top: 30px; display: flex; gap: 24px; }
+    .pdp-box img { width: 180px; height: 230px; object-fit: cover; border-radius: 8px; }
+    .recs-container { margin-top: 24px; }
+    .recs-container h3 { font-size: 16px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+
+  <h1>🛍️ Zawolf AI — Intelligent Storefront</h1>
+  <p class="subtitle">Categorized catalog, real images, and dynamic BM25 recommendations.</p>
+
+  <div class="tabs" id="tabs-container"></div>
+  <div class="grid" id="catalog-grid"></div>
+
+  <div id="pdp-section" style="display: none;">
+    <div class="pdp-box" id="pdp-content"></div>
+    
+    <div class="recs-container">
+      <h3>✨ Complete the Look <span style="font-size: 12px; color:#64748b; font-weight:normal;">(Cross-category matches)</span></h3>
+      <div class="grid" id="recs-complete"></div>
+    </div>
+
+    <div class="recs-container">
+      <h3>🔍 Similar Styles & Variations <span style="font-size: 12px; color:#64748b; font-weight:normal;">(Same category, diverse colors)</span></h3>
+      <div class="grid" id="recs-similar"></div>
+    </div>
+  </div>
+
+  <script>
+    let catalogData = {};
+
+    async function loadCatalog() {
+      const res = await fetch('/api/v1/catalog');
+      const data = await res.json();
+      catalogData = data.categories;
+
+      const tabsContainer = document.getElementById('tabs-container');
+      tabsContainer.innerHTML = '';
+      const categories = Object.keys(catalogData);
+
+      categories.forEach((cat, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `tab-btn ${idx === 0 ? 'active' : ''}`;
+        btn.innerText = cat;
+        btn.onclick = () => renderCategory(cat, btn);
+        tabsContainer.appendChild(btn);
+      });
+
+      if (categories.length > 0) renderCategory(categories[0]);
+    }
+
+    function renderCategory(catName, activeBtn = null) {
+      if (activeBtn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        activeBtn.classList.add('active');
+      }
+      const grid = document.getElementById('catalog-grid');
+      grid.innerHTML = '';
+
+      catalogData[catName].forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.onclick = () => loadProduct(item.product_id);
+        card.innerHTML = `
+          <img src="${item.image_uri}" />
+          <div class="name">${item.product_name}</div>
+          <div class="meta">${item.category} • ${item.color}</div>
+          <div class="badge">${item.price_tier}</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function loadProduct(pid) {
+      const res = await fetch(`/api/v1/product/${pid}`);
+      const data = await res.json();
+      const pdp = document.getElementById('pdp-section');
+      pdp.style.display = 'block';
+
+      // عرض القطعة الرئيسية
+      document.getElementById('pdp-content').innerHTML = `
+        <img src="${data.product.image_uri}" />
+        <div>
+          <span style="font-size:11px; font-weight:bold; color:#64748b;">SKU #${data.product.product_id}</span>
+          <h2 style="margin:4px 0 10px;">${data.product.product_name}</h2>
+          <p style="color:#475569; font-size:14px; margin:0 0 12px;">Category: <b>${data.product.category}</b> | Color: <b>${data.product.color}</b></p>
+          <p style="color:#64748b; font-size:13px; max-width:550px;">${data.description}</p>
+          <div class="badge" style="background:#22c55e; color:#fff;">Status: ${data.stock_status}</div>
+        </div>
+      `;
+
+      // رندر الـ Complete the Look
+      renderSubGrid('recs-complete', data.complete_the_look, '#fef3c7', '#92400e');
+
+      // رندر الـ Similar Styles
+      renderSubGrid('recs-similar', data.similar_alternatives, '#e0e7ff', '#3730a3');
+
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+
+    function renderSubGrid(elementId, items, bg, color) {
+      const container = document.getElementById(elementId);
+      container.innerHTML = '';
+      if (!items || items.length === 0) {
+        container.innerHTML = '<p style="color:#94a3b8; font-size:12px;">No recommendations found.</p>';
+        return;
+      }
+      items.forEach(it => {
+        const c = document.createElement('div');
+        c.className = 'card';
+        c.onclick = () => loadProduct(it.product_id);
+        c.innerHTML = `
+          <img src="${it.image_uri}" />
+          <div class="name">${it.product_name}</div>
+          <div class="meta">${it.category} • ${it.color}</div>
+          <div class="badge" style="background:${bg}; color:${color};">${it.badge_text || 'Match'}</div>
+        `;
+        container.appendChild(c);
+      });
+    }
+
+    loadCatalog();
+  </script>
+</body>
+</html>
