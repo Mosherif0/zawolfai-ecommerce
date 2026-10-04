@@ -26,14 +26,26 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-# Load the nearest .env walking up from this file, so a single .env at the
-# workspace root serves every service.
+# Load .env files so a single file - or per-service files - can configure the
+# whole backend. Order matters:
+#
+#   1. workspace root  (ZAWOLF_WORKSPACE/.env)  - shared settings
+#   2. each service dir (.../ocr/.env)          - service-specific overrides
+#
+# A service file is loaded AFTER the root and with override=True so it wins;
+# loading the root alone would silently miss ocr/.env and report SQLite even
+# while the OCR service is talking to PostgreSQL.
 _HERE = Path(__file__).resolve()
-for _candidate in [_HERE.parent, *_HERE.parents]:
-    _env = _candidate / ".env"
-    if _env.is_file():
-        load_dotenv(_env, override=False)
-        break
+_ROOT_ENV = _HERE.parent / ".env"
+if _ROOT_ENV.is_file():
+    load_dotenv(_ROOT_ENV, override=False)
+
+for _service in ("ocr", "demand_forecasting",
+                 "recommendation_system/zawolfai-ecommerce-Re",
+                 "conversational-ai-mvp"):
+    _service_env = _HERE.parent / _service / ".env"
+    if _service_env.is_file():
+        load_dotenv(_service_env, override=True)
 
 # --------------------------------------------------------------------------
 # workspace layout
