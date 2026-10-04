@@ -19,7 +19,9 @@ import warehouse as wh  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def isolated_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(wh, "DB_HOST", None)
     monkeypatch.setattr(wh, "SQLITE_PATH", tmp_path / "wh.db")
+    wh.init_db()
     yield
 
 

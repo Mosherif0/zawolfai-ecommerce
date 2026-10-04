@@ -53,6 +53,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def init_db() -> None:
+    """
+    Create the warehouse schema.
+
+    Opening a connection already applies the schema, so this exists for
+    callers that want to ensure the tables exist before doing anything else
+    (the CLI, a health probe, a fresh deployment).
+    """
+    with connection():
+        return
+
+
 @contextmanager
 def connection():
     """Open a connection with the schema applied, and always close it."""

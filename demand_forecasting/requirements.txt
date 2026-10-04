@@ -1,0 +1,19 @@
+# Demand forecasting service
+#
+# LightGBM is required at runtime (the API loads a trained booster); xgboost is
+# only needed to re-train via forecast.py, and scikit-learn for the metrics.
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+pydantic>=2.6.0
+pandas>=2.2.0
+numpy>=1.26.0
+lightgbm>=4.0.0
+
+# training + metrics
+xgboost>=2.0.0
+scikit-learn>=1.4.0
+
+# tests
+pytest>=8.0.0
+httpx>=0.27.0

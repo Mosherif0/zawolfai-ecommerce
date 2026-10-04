@@ -611,16 +611,19 @@ def parse_rows(rows):
 
 def save_items(items, database=True):
     """
-    Persist parsed items to Postgres.
+    Persist parsed items.
 
-    `database=False` keeps everything local, which is what the tests and any
-    dry-run should use.
+    Goes through warehouse.record_receipt rather than the older
+    inventory.save_products, because warehouse keeps the stock_movements
+    ledger - without it a quantity can never be traced back to its source.
+    `database=False` keeps everything local, which is what tests and dry-runs
+    should use.
     """
     if not database:
         return None
-    from inventory import save_products   # imported here, not at module load
+    from warehouse import record_receipt   # imported here, not at module load
 
-    return save_products(items)
+    return record_receipt(items)
 
 
 def parse_receipt(ocr_json_path="output/ocr_data.json", y_threshold=35):

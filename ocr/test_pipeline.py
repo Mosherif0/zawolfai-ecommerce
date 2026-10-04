@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import inventory as inv  # noqa: E402
+import warehouse as wh  # noqa: E402
 import receipt_parser as rp  # noqa: E402
 
 
@@ -23,8 +23,21 @@ import receipt_parser as rp  # noqa: E402
 def clean_db(tmp_path, monkeypatch):
     """Every test gets an isolated SQLite file."""
     db = tmp_path / "test_inventory.db"
-    monkeypatch.setattr(inv, "SQLITE_PATH", db)
+    monkeypatch.setattr(wh, "DB_HOST", None)
+    monkeypatch.setattr(wh, "SQLITE_PATH", db)
+    wh.init_db()
     yield
+
+
+def _reset_all():
+    """Clear every warehouse table."""
+    for table in ("stock_movements", "receipt_items", "receipts", "products"):
+        wh.reset_table(table)
+
+
+def _log_only(source_file, items):
+    """The old flat log_receipt, kept only for its call-count assertion."""
+    return len(items)
 
 
 def _ocr(text, y, x0=0, x1=300, conf=0.9):
@@ -86,48 +99,59 @@ def test_save_inserts_then_accumulates():
     first = [{"name": "Black Blazer", "price": 59.99, "quantity": 1}]
     second = [{"name": "Black Blazer", "price": 59.99, "quantity": 2}]
 
-    assert inv.save_products(first)[0]["action"] == "added"
-    assert inv.save_products(second)[0]["action"] == "updated"
+    assert wh.record_receipt(first)["items"][0]["action"] == "added"
+    assert wh.record_receipt(second)["items"][0]["action"] == "updated"
 
-    row = inv.list_products()[0]
+    row = wh.list_products()[0]
     assert row["quantity"] == 3
     assert row["price"] == 59.99
 
 
 def test_prices_update_on_rescan():
-    inv.save_products([{"name": "Belt", "price": 25.00, "quantity": 1}])
-    inv.save_products([{"name": "Belt", "price": 29.99, "quantity": 1}])
-    assert inv.list_products()[0]["price"] == 29.99
+    wh.record_receipt([{"name": "Belt", "price": 25.00, "quantity": 1}])
+    wh.record_receipt([{"name": "Belt", "price": 29.99, "quantity": 1}])
+    assert wh.list_products()[0]["price"] == 29.99
 
 
 def test_full_receipt_flow_updates_inventory():
     items = rp.parse_rows(rp.group_rows(_zara_receipt()))
-    inv.save_products(items)
+    wh.record_receipt(items)
 
-    rows = {r["name"]: r for r in inv.list_products()}
+    rows = {r["name"]: r for r in wh.list_products()}
     assert set(rows) == {"Black Blazer", "White Shirt", "Wide Leg Jeans", "Leather Belt"}
     assert sum(r["quantity"] for r in rows.values()) == 4
 
     # a second pass of the same receipt doubles the stock
-    inv.save_products(items)
-    assert sum(r["quantity"] for r in inv.list_products()) == 8
+    wh.record_receipt(items)
+    assert sum(r["quantity"] for r in wh.list_products()) == 8
 
 
 def test_receipt_audit_trail():
+    """
+    A receipt leaves a full audit trail: one receipts row, one receipt_items
+    row per line, and one stock movement per line - all in one transaction.
+    """
     items = rp.parse_rows(rp.group_rows(_zara_receipt()))
-    inv.save_products(items)
-    assert inv.log_receipt("zara.jpg", items) == 4
-    assert inv.log_receipt("empty.jpg", []) == 0
+    result = wh.record_receipt(items, source_file="zara.jpg")
+
+    assert result["receipt_id"] is not None
+    assert len(result["items"]) == len(items)
+    assert all(entry["movement_id"] is not None for entry in result["items"])
+
+    receipts = wh.list_receipts()
+    assert len(receipts) == 1
+    assert receipts[0]["source_file"] == "zara.jpg"
+    assert receipts[0]["item_count"] == len(items)
 
 
 def test_reset_clears_everything():
-    inv.save_products([{"name": "X", "price": 1.0, "quantity": 1}])
-    inv.reset_database()
-    assert inv.list_products() == []
+    wh.record_receipt([{"name": "X", "price": 1.0, "quantity": 1}])
+    _reset_all()
+    assert wh.list_products() == []
 
 
 def test_no_postgres_selected_by_default():
-    assert inv.using_postgres() is False
+    assert wh.using_postgres() is False
 
 
 # --------------------------------------------------------------------------
@@ -150,7 +174,9 @@ def test_pipeline_parse_phase_without_images(tmp_path, monkeypatch):
     """
     import pipeline
 
-    monkeypatch.setattr(inv, "SQLITE_PATH", tmp_path / "p.db")
+    monkeypatch.setattr(wh, "DB_HOST", None)
+    monkeypatch.setattr(wh, "SQLITE_PATH", tmp_path / "p.db")
+    wh.init_db()
 
     ocr_json = tmp_path / "receipt.ocr.json"
     ocr_json.write_text(json.dumps(_zara_receipt()), encoding="utf-8")
@@ -158,9 +184,9 @@ def test_pipeline_parse_phase_without_images(tmp_path, monkeypatch):
     items = rp.parse_rows(rp.group_rows(json.loads(ocr_json.read_text())))
     assert len(items) == 4
 
-    report = inv.save_products(items)
+    report = wh.record_receipt(items)["items"]
     assert {r["action"] for r in report} == {"added"}
-    assert len(inv.list_products()) == 4
+    assert len(wh.list_products()) == 4
 
 
 # --------------------------------------------------------------------------

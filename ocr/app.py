@@ -122,10 +122,12 @@ async def process(
 
         saved: List[Dict] = []
         if save and items:
-            import inventory as inv
+            # Write through warehouse so the stock movements ledger is kept in
+            # step with the scan, not only the flat products table.
+            import warehouse as wh
 
-            saved = inv.save_products(items)
-            inv.log_receipt(target.name, items)
+            result = wh.record_receipt(items, source_file=target.name, language=chosen)
+            saved = result["items"]
             message = f"{len(items)} item(s) extracted and saved"
 
         return ProcessResponse(
@@ -143,10 +145,16 @@ async def process(
 
 @app.get("/api/inventory")
 async def inventory() -> Dict:
-    import inventory as inv
+    """
+    Current stock, read from the warehouse layer.
 
-    return {"backend": "postgres" if inv.using_postgres() else "sqlite",
-            "products": inv.list_products()}
+    Read via warehouse rather than the older inventory module so this endpoint
+    and /api/warehouse/* always agree; reading two different modules against
+    the same database is how the numbers quietly drift apart.
+    """
+    import warehouse as wh
+
+    return {"backend": wh.backend(), "products": wh.list_products()}
 
 
 # --------------------------------------------------------------------------
@@ -246,3 +254,50 @@ async def rebuild() -> Dict:
     import warehouse as wh
 
     return wh.rebuild_quantities()
+
+
+@app.get("/health")
+async def health() -> Dict:
+    """
+    Standard health endpoint.
+
+    `/health/catalog` exists on the recommendation service, so a load balancer
+    or run_all.py probing every service on the same path got a 404 from this
+    one. One shape across all three services means one probe works everywhere.
+    """
+    import schema as schema_mod
+    import warehouse as wh
+
+    # The warehouse layer is warehouse.py; inventory.py is the older flat
+    # table module and has no connection() or backend().
+    backend = wh.backend()
+    try:
+        with wh.connection() as conn:
+            counts = schema_mod.table_counts(conn, backend)
+        warehouse_ok = True
+    except Exception as exc:
+        warehouse_ok = False
+        counts = {"error": f"{type(exc).__name__}: {exc}"}
+
+    return {
+        "status": "ok" if warehouse_ok else "degraded",
+        "service": "ocr",
+        "warehouse": {
+            "backend": backend,
+            "available": warehouse_ok,
+            "tables": counts,
+        },
+        "endpoints": ["/api/process", "/api/languages", "/api/inventory",
+                      "/api/warehouse/products", "/api/warehouse/receipts",
+                      "/api/warehouse/stats"],
+    }
+
+
+@app.get("/health/catalog")
+async def health_catalog() -> Dict:
+    """Same shape as the recommendation service, for uniform probing."""
+    body = await health()
+    body["catalog_loaded"] = body["warehouse"]["available"]
+    body["product_count"] = body["warehouse"]["tables"].get("products", 0)
+    body["backend"] = body["warehouse"]["backend"]
+    return body

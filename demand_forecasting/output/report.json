@@ -1,0 +1,115 @@
+{
+  "config": {
+    "horizon": 1,
+    "test_weeks": 8,
+    "panel_rows": 385060,
+    "articles": 7405,
+    "weeks": 52,
+    "zero_share_pct": 95.19,
+    "mean_weekly_sales": 0.0517,
+    "features": [
+      "lag_1",
+      "lag_2",
+      "lag_3",
+      "lag_4",
+      "lag_8",
+      "roll_4",
+      "roll_8",
+      "roll_12",
+      "roll_26",
+      "roll_4_max",
+      "ewm_03",
+      "cum_sales",
+      "ever",
+      "since_last",
+      "rev_cum",
+      "price_mean",
+      "online_share",
+      "tot_lag",
+      "tot_roll4",
+      "sin_w",
+      "cos_w"
+    ]
+  },
+  "split": "train 236,960 | val 59,240 | test 59,240 from 2018-11-05",
+  "metrics": [
+    {
+      "model": "Naive: rolling-4 mean",
+      "MAE": 0.10966407832545577,
+      "RMSE": 0.2848920629088151,
+      "R2": -0.07219348735226983,
+      "PoisDev": 1.2189050872680451,
+      "AUC": 0.5702188823091865,
+      "PR_AUC": 0.10212887034550668
+    },
+    {
+      "model": "Naive: rolling-12 mean",
+      "MAE": 0.10661996398829618,
+      "RMSE": 0.2650463164311144,
+      "R2": 0.07198283175380216,
+      "PoisDev": 0.9019795892479037,
+      "AUC": 0.5953966037149139,
+      "PR_AUC": 0.13212845832620673
+    },
+    {
+      "model": "LightGBM Poisson + features",
+      "MAE": 0.10545912740821115,
+      "RMSE": 0.25907711112233184,
+      "R2": 0.11331256041270077,
+      "PoisDev": 0.32070831217176304,
+      "AUC": 0.7085075206304041,
+      "PR_AUC": 0.18248554865959085
+    },
+    {
+      "model": "XGBoost Poisson + features",
+      "MAE": 0.10420824334306478,
+      "RMSE": 0.25893702493593435,
+      "R2": 0.11427118682120108,
+      "PoisDev": 0.3202095103268025,
+      "AUC": 0.7140182761062108,
+      "PR_AUC": 0.18352210153022272
+    },
+    {
+      "model": "Blend (LGBM + XGB)",
+      "MAE": 0.10483209427773992,
+      "RMSE": 0.25892761527221364,
+      "R2": 0.11433555968442732,
+      "PoisDev": 0.32029861365758533,
+      "AUC": 0.7105378304099264,
+      "PR_AUC": 0.1831545163604583
+    }
+  ],
+  "business": {
+    "weekly_mape": 15.7421,
+    "window_r2": 0.5082,
+    "window_auc": 0.7606,
+    "top100_sell_rate": 39.375,
+    "base_rate": 5.9048,
+    "lift": 6.6683
+  },
+  "threshold": 0.11999999999999998,
+  "threshold_best_f1": 0.2148,
+  "feature_importance": {
+    "cum_sales": 46706.5,
+    "roll_26": 35923.4,
+    "price_mean": 5727.5,
+    "rev_cum": 4920.0,
+    "ewm_03": 4484.0,
+    "roll_12": 4323.1,
+    "sin_w": 3020.3,
+    "online_share": 2116.2,
+    "tot_roll4": 2015.6,
+    "cos_w": 1958.8,
+    "since_last": 1899.8,
+    "tot_lag": 1824.2,
+    "roll_8": 612.0,
+    "lag_8": 519.7,
+    "lag_3": 346.1,
+    "lag_4": 318.2,
+    "roll_4": 252.8,
+    "lag_1": 204.9,
+    "roll_4_max": 197.4,
+    "lag_2": 196.2,
+    "ever": 0.0
+  }
+}

@@ -178,19 +178,21 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0 if ok else 1
 
     # --- 4. persist ---
-    import inventory as inv
+    # Write through warehouse, not the flat inventory module: warehouse keeps
+    # the stock_movements ledger, so a rebuild can always reconstruct the
+    # quantities from source.
+    import warehouse as wh
 
-    inv.init_db()
+    wh.init_db()
     print("\nWriting to database...")
     grand_total = 0
     for summary in ok:
         if not summary["items"]:
             continue
-        report = inv.save_products(summary["items"])
-        inv.log_receipt(summary["file"], summary["items"])
+        result = wh.record_receipt(summary["items"], source_file=summary["file"])
         grand_total += sum(i["quantity"] for i in summary["items"])
         print(f"\n  {summary['file']}")
-        for entry in report:
+        for entry in result["items"]:
             icon = "+" if entry["action"] == "added" else "="
             print(f"    {icon} {entry['name']:34} qty={entry['quantity']}")
 
@@ -201,7 +203,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"\n{'=' * 70}")
     print(f"INVENTORY AFTER {len(ok)} RECEIPT(S)  (total units: {grand_total})")
     print(f"{'=' * 70}")
-    for row in inv.list_products():
+    for row in wh.list_products():
         print(f"  #{row['id']:<4} {row['name'][:34]:36} "
               f"{row['price']:>9.2f}  x{row['quantity']}")
 

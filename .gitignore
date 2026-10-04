@@ -1,5 +1,38 @@
+# ---- secrets -------------------------------------------------------------
 .env
+*.pem
+*.key
+
+# ---- python --------------------------------------------------------------
 .venv/
 __pycache__/
 *.pyc
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
 .DS_Store
+
+# ---- generated at runtime (rebuilt by run_all / uvicorn startup) ---------
+# The recommendation service copies data/images -> static/images on lifespan
+# startup (core/catalog_service.py:sync_images). Committing the copy would add
+# 15 MB of duplicates to the repo for no benefit.
+recommendation_system/**/static/images/
+
+# Training output: regenerated every time forecast.py runs, and
+# predictions.csv alone is 4.6 MB. The report is small and IS kept - see below.
+demand_forecasting/output/*
+!demand_forecasting/output/report.json
+
+# ---- local databases -----------------------------------------------------
+*.db
+*.sqlite3
+ocr/output/
+
+# ---- model artefacts -----------------------------------------------------
+# The trained LightGBM booster IS tracked on purpose: demand_forecasting's API
+# loads models/lgbm_poisson.txt at startup and returns 503 without it, so a
+# fresh clone has to work without re-running a 3-minute training job.
+!demand_forecasting/models/*.txt
+!demand_forecasting/models/*.json
