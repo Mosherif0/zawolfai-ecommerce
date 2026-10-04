@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant • Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css?v=2.0.0">
+</head>
+    <body>
+    <div class="chat-app">
+        <!-- Header -->
+        <header class="chat-header">
+            <div class="header-info">
+                <div class="avatar-wrapper">
+                    <div class="bot-avatar">✨</div>
+                    <span class="status-dot"></span>
+                </div>
+                <div class="header-titles">
+                    <h1 class="assistant-title">AI Assistant</h1>
+                    <span class="assistant-status">Online • Demo</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="newChatBtn" class="btn-new-chat" title="بدء محادثة جديدة">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+                <span>محادثة جديدة</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Suggested Prompts / Chips Bar -->
+        <div class="suggested-container" id="suggestedContainer">
+            <div class="suggested-label">💡 اقتراحات سريعة:</div>
+            <div class="suggested-chips">
+                <button class="chip" data-text="عاوز جاكيت">عاوز جاكيت</button>
+                <button class="chip" data-text="فستان مناسبة">فستان مناسبة</button>
+                <button class="chip" data-text="بنطلون تحت 500 جنيه">تحت 500 جنيه</button>
+                <button class="chip" data-text="عاوز حاجة عملية">رشحلي</button>
+            </div>
+        </div>
+
+        <!-- Messages Container -->
+        <main class="chat-messages" id="chatMessages">
+            <!-- Welcome Message -->
+            <div class="message-row assistant">
+                <div class="msg-avatar">✨</div>
+                <div class="msg-bubble-wrapper">
+                    <div class="msg-bubble">
+                        <p class="welcome-title">أهلاً 👋</p>
+                        <p>أنا المساعد الذكي. اسألني عن المنتجات، الطلبات، الشحن أو أي حاجة تخص البيزنس.</p>
+                    </div>
+                    <span class="msg-time" id="initialTime"></span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Typing / Loading Indicator -->
+        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+            <div class="msg-avatar mini">✨</div>
+            <div class="typing-bubble">
+                <span class="typing-text">بيفكر</span>
+                <div class="dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <footer class="chat-input-area">
+            <form id="chatForm" class="input-form">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    placeholder="اكتب رسالتك هنا... (مثال: عاوز حاجة بميزانية 1000 جنيه)" 
+                    autocomplete="off"
+                    maxlength="2000"
+                    required
+                />
+                <button type="submit" id="sendBtn" class="btn-send" aria-label="إرسال">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </form>
+        </footer>
+    </div>
+
+    <script src="/static/app.js?v=2.0.1"></script>
+</body>
+</html>
