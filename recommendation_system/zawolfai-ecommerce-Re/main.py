@@ -1,4 +1,6 @@
 import os
+import sys
+from pathlib import Path
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +10,12 @@ from fastapi.responses import FileResponse
 from api.schemas import ProductDetailResponse, CategorizedCatalogResponse, ProductCardDTO
 from engines.dual_recommender import DualRecommender
 from core.image_processor import ImageProcessor
+
+# Forecasting service
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from demand_forecasting.forecasting_service import forecast_article
 
 app = FastAPI(title="Zawolf AI — Production System", version="1.0.0")
 
@@ -106,3 +114,10 @@ async def get_product_detail(product_id: int):
         complete_the_look=comp_recs,
         similar_alternatives=sim_recs
     )
+
+@app.get("/api/v1/forecast/{article_id}")
+async def get_forecast(article_id: int):
+    try:
+        return forecast_article(article_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
