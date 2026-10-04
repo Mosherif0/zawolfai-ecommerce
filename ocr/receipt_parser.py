@@ -1,7 +1,10 @@
 import json
 import re
+import language_config as lang_config
 
-from inventory import save_products
+# NOTE: `inventory` is imported lazily inside `save_items()`.
+# Importing it here meant merely importing this module opened a PostgreSQL
+# connection, which broke the test suite and any offline use of the parser.
 
 
 # ---------------------------------------------------------
@@ -18,7 +21,82 @@ def load_ocr_data(path="output/ocr_data.json"):
 # Group OCR detections into receipt rows
 # ---------------------------------------------------------
 
-def group_rows(ocr_data, y_threshold=35):
+
+# Guards against OCR blobs being mistaken for products.
+MAX_PRODUCT_NAME_LENGTH = 60
+MAX_PLAUSIBLE_PRICE = 100_000.0
+
+
+# Seven consecutive digits is the shortest run that is unambiguously a
+# barcode / card number / phone number rather than a quantity or a price.
+_IDENTIFIER_RE = re.compile(r"\d{7,}")
+
+
+def _identifier_only(text):
+    """
+    True when a row is essentially one long digit run (barcode / SKU line).
+
+    A real product line contains words; an identifier line does not, so the
+    letter count is what separates "068949055223" from "6FT HDMI CABLE".
+    """
+    if not _IDENTIFIER_RE.search(text):
+        return False
+    letters = sum(ch.isalpha() for ch in text)
+    digits = sum(ch.isdigit() for ch in text)
+    return letters <= digits
+
+
+def _median(values):
+    ordered = sorted(values)
+    n = len(ordered)
+    if not n:
+        return 0.0
+    mid = n // 2
+    return float(ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2)
+
+
+def adaptive_row_threshold(ocr_data, default=35.0):
+    """
+    Estimate a row-merge tolerance from the text height in the OCR output.
+
+    Receipt line spacing is roughly one text height, so half of the median
+    glyph height separates rows while still absorbing the vertical jitter the
+    detector introduces. Clamped so an all-tiny or all-huge image cannot
+    produce a degenerate threshold.
+    """
+    heights = []
+    for item in ocr_data:
+        bbox = item.get("bbox") or []
+        if len(bbox) < 4:
+            continue
+        ys = [p[1] for p in bbox]
+        height = max(ys) - min(ys)
+        if height > 0:
+            heights.append(height)
+
+    if not heights:
+        return default
+
+    median_h = _median(heights)
+    if median_h <= 0:
+        return default
+
+    return max(6.0, min(default, median_h * 0.6))
+
+
+
+def group_rows(ocr_data, y_threshold=None):
+    """
+    Cluster detections into visual rows.
+
+    `y_threshold` is ADAPTIVE. A fixed pixel value breaks as soon as the
+    receipt is photographed at a different distance: 35px merged two adjacent
+    line items on a tightly-set receipt and split one long product name on a
+    loosely-set one. The threshold is now derived from the median glyph
+    height, which is the only scale available in the OCR output.
+    """
+    if y_threshold is None:
+        y_threshold = adaptive_row_threshold(ocr_data)
 
     detections = []
 
@@ -45,20 +123,26 @@ def group_rows(ocr_data, y_threshold=35):
 
     for detection in detections:
 
-        added = False
+        # Compare against the NEAREST row, not the first row that happens to
+        # be within range. Scanning top-down and taking the first match lets a
+        # tall row swallow a line that sits between two rows, and the
+        # mean-of-row centre drifts as items are appended.
+        best_index = None
+        best_distance = None
 
-        for row in rows:
+        for index, row in enumerate(rows):
+            row_y = _median([item["y"] for item in row])
+            distance = abs(detection["y"] - row_y)
+            if distance <= y_threshold and (best_distance is None or distance < best_distance):
+                best_index = index
+                best_distance = distance
 
-            row_y = sum(item["y"] for item in row) / len(row)
-
-            if abs(detection["y"] - row_y) <= y_threshold:
-
-                row.append(detection)
-                added = True
-                break
-
-        if not added:
+        if best_index is not None:
+            rows[best_index].append(detection)
+        else:
             rows.append([detection])
+
+    rows.sort(key=lambda row: _median([item["y"] for item in row]))
 
     final_rows = []
 
@@ -77,20 +161,54 @@ def group_rows(ocr_data, y_threshold=35):
 # Extract price
 # ---------------------------------------------------------
 
+def normalize_price_text(text):
+    """
+    Canonical price-text normalisation, shared by extract_price and
+    remove_price.
+
+    ONE function matters: when each did its own thing, "2,495.00" was priced
+    correctly but only "2," was stripped from the product name, so the item
+    was saved as "KALLAX Shelf Unit 2". Normalise first, then both the
+    extractor and the stripper see identical text.
+
+      2,495.00  -> 2495.00   (thousands separator removed)
+      19,99     -> 19.99     (decimal comma)
+    """
+    # Arabic-Indic digits ("٢٤٩٥٫٠٠") and the Arabic decimal separator must
+    # become ASCII before any numeric rule runs, otherwise every price regex
+    # silently fails on an Egyptian receipt.
+    text = lang_config.normalize_arabic(text)
+
+    text = re.sub(r"(?<=\d),(?=\d{3}(?:\D|$))", "", text)
+    text = re.sub(r"(\d),(\d{2})(?!\d)", r"\1.\2", text)
+    return re.sub(r"\s*\.\s*", ".", text)
+
+
+
 def extract_price(text):
 
     original = text
 
-    text = text.replace(",", ".")
-    text = re.sub(r"\s*\.\s*", ".", text)
+    text = normalize_price_text(text)
 
     # Normal prices:
     # $19.99
     # S19.99
     # 19.99
+    # 1,299.50
 
     match = re.search(
-        r"(?:\$|S)?\s*(\d+\.\d{2})",
+        r"(?:\$|S)?\s*(\d{1,7}\.\d{2})",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    if match:
+        return float(match.group(1))
+
+    # Whole amounts with no decimals: $45, USD120
+    match = re.search(
+        r"(?:\$|USD|S)\s*(\d{1,7})(?!\s*\.\s*\d)",
         text,
         flags=re.IGNORECASE
     )
@@ -158,11 +276,30 @@ def extract_quantity(text):
     # Do NOT treat numbers inside product names
     # such as "6FT HDMI CABLE" as quantity.
     #
-    # Quantity must be followed by:
-    # whitespace
-    # x
-    # hyphen
+    # Quantity may appear at the START ("2 x CABLE") or at the END
+    # ("WOOL SOCKS 3X"), which is the layout EasyOCR often produces.
+    # It must be a standalone token followed/preceded by x, *, @ or a
+    # space, so "6FT" and "SOCKX" are not mistaken for a quantity.
 
+    # A LONG digit run (7+ consecutive digits) means this row is a barcode /
+    # SKU / phone number, not a sale line. Without this, "068949055223 2.00"
+    # parsed as quantity 68949055223 and wrote 68 billion units into the
+    # database. "6FT HDMI CABLE" is untouched: its longest run is 1 digit.
+    if re.search(r"\d{7,}", lang_config.normalize_arabic(text)):
+        return 1
+
+
+    # trailing form: "SOCKS 3X", "CABLE 2 @", "ITEM (4)"
+    match = re.search(
+        r"(?:^|[\s(])(\d{1,3})\s*[x*@]\s*(?=$|[\s)])",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    if match:
+        return int(match.group(1))
+
+    # leading form: "2 x CABLE", "3 - CABLE"
     match = re.match(
         r"^\s*(\d+)(?=\s+|x\b|-)",
         text,
@@ -172,6 +309,21 @@ def extract_quantity(text):
     if match:
         return int(match.group(1))
 
+    # "ITEM (4)" - a parenthesised count at the end of the line
+    match = re.search(r"\((\d{1,3})\)\s*$", text)
+
+    if match:
+        return int(match.group(1))
+
+    # "2 CABLE" - a bare count directly after a leading number.
+    match = re.match(r"^\s*(\d{1,3})\s+(?=[A-Za-z])", text)
+
+    if match:
+        value = int(match.group(1))
+        if value < 100:
+            return value
+
+    # No quantity printed: the receipt shows one unit per line.
     return 1
 
 
@@ -181,120 +333,135 @@ def extract_quantity(text):
 
 def remove_price(text):
 
-    # Normal decimal prices:
-    # $19.99
-    # S19.99
-    # 19.99
+    # Normalise FIRST so this function and extract_price see identical text
+    # (see normalize_price_text for the bug this prevents).
+    text = normalize_price_text(text)
 
+    # Currency-prefixed amounts, removed whole.
+    text = re.sub(r"\bUSD\s*\d+(?:\.\d{1,2})?", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<![A-Za-z0-9])[\$]\s*\d+(?:\.\d{1,2})?", "", text)
+    text = re.sub(r"(?<![A-Za-z0-9])S\s*\d+(?:\.\d{1,2})?", "", text)
+
+    # Bare decimals: "199.00" -> 2495.00
+    text = re.sub(r"(?<![A-Za-z0-9.])\d+\.\d{1,2}", "", text)
+
+    # Genuinely fragmented OCR prices ("S39 _ I6 98"). The lookbehind stops the
+    # leading "S" of a word from being read as a currency mark.
     text = re.sub(
-        r"(?:\$|S)?\s*\d+\s*\.\s*\d{2}",
+        r"(?<![A-Za-z0-9])[S\$](?=\s*\d)\s*\d{1,4}"
+        r"(?:\s*[_\-]\s*\d+)?(?:\s+\d{2})?",
         "",
-        text,
-        flags=re.IGNORECASE
+        text
     )
 
-    # USD prices:
-    # USD89
-    # USD120
-    # USD89.99
+    # Whole amounts with no decimals ("USD45", "45"). A quantity marker
+    # immediately after the number ("SOCKS 3X") must go with it, otherwise the
+    # stripper leaves a stray "X" in the product name.
+    text = re.sub(r"(?<![A-Za-z0-9.])\d{1,7}\s*[xX](?!\d|\.\d)", "", text)
+    text = re.sub(r"(?<![A-Za-z0-9.])\d{1,7}(?!\d|\.\d)", "", text)
 
-    text = re.sub(
-        r"USD\s*\d+(?:\.\d{1,2})?",
-        "",
-        text,
-        flags=re.IGNORECASE
-    )
+    # A currency glyph split from its digits by the OCR ("s49,99" -> the "s"
+    # became a standalone token). It is not a price, so it must not survive
+    # into the product name.
+    text = re.sub(r"(?<![A-Za-z])[sS](?=\s*\d)", "", text)
 
-    # Fragmented OCR prices.
-    #
-    # Example:
-    # S39 _ I6 98
-    #
-    # Only remove S when it is actually attached
-    # to a number.
-    #
-    # This prevents words such as:
-    # Jeans
-    # Shirts
-    # Sneakers
-    #
-    # from losing their final "s".
+    # A stray currency symbol glued to the name means the OCR split the price
+    # oddly ("€ 69 69 SILI) BRICKS"). Drop the symbol; the digits that follow
+    # are removed by the leftover-number rule in parse_rows.
+    text = re.sub(r"^[\u20ac\u00a3\u00a5$]", "", text)
 
-    text = re.sub(
-    r"[Ss\$](?=\s*\d)\s*\d{1,4}(?:\s*[_\-]\s*\d+)?(?:\s+\d{2})?",
-    "",
-    text
-)
+    text = re.sub(r"\s*[_|,]\s*$", "", text)
+
+    # Bullet / index markers a printed receipt puts in front of a line item
+    # ("# Yogurt", "* MILK", "- Bread", "//"). They are layout, not product.
+    text = re.sub(r"^[#*/\u2022\-\s]+(?=[A-Za-z])", "", text)
 
     return " ".join(text.split()).strip()
 
 
-# ---------------------------------------------------------
+
 # Detect summary / footer rows
 # ---------------------------------------------------------
 
 def is_summary_row(text, price=None):
+    """
+    Decide whether a row is a footer total rather than a product line.
 
-    text_lower = text.lower().strip()
+    OCR corrupts these labels constantly ("Subtota/", "T0TAL", "Totel"), so the
+    first word is compared with an edit-distance tolerance instead of an exact
+    match - that is what stops a corrupted "Subtotal" from being sold as a
+    product.
+    """
+    text_lower = (text or "").lower().strip()
+    if not text_lower:
+        return False
 
-    summary_keywords = [
-        "subtotal",
-        "total",
-        "tax",
-        "savings",
-        "change",
-        "payment",
-        "amount",
-        "balance",
-        "transaction"
-    ]
+    summary_keywords = list(lang_config.summary_keywords())
 
-    # Exact summary labels should always be ignored.
 
-    first_word = text_lower.split()[0] if text_lower else ""
+    first_word = text_lower.split()[0].rstrip(":")
+    # Strip trailing punctuation OCR leaves behind ("subtota/", "subtotal.").
+    first_word = re.sub(r"[^a-z]", "", first_word)
 
-    if first_word.rstrip(":") in summary_keywords:
-        return True
+    for keyword in summary_keywords:
+        if _similar(first_word, keyword.replace(" ", "")):
+            return True
 
-    # Fuzzy matching is only used when the row
-    # actually contains a price.
-    #
-    # This avoids incorrectly treating OCR continuation
-    # text such as "ABOUT )" as a summary.
-
+    # Footer noise can start with anything: "CREDIT TEND ACCOUNT 9999
+    # APPROVED", "PAID RETURN POLICY RETURNS ACCEPTED". A price is present on
+    # almost every one of these lines, so when the row carries an amount we
+    # scan the WHOLE text for any footer token rather than only its first word.
     if price is not None:
-
         for keyword in summary_keywords:
-
             if keyword in text_lower:
                 return True
 
-    return False
+    
 
 
-# ---------------------------------------------------------
-# Detect metadata rows
-# ---------------------------------------------------------
+def _similar(a, b, tolerance=1):
+    """True when two short labels differ by at most `tolerance` edits."""
+    if a == b:
+        return True
+    if abs(len(a) - len(b)) > tolerance:
+        return False
+    return _levenshtein(a, b) <= tolerance
+
+
+def _levenshtein(a, b):
+    """Plain Levenshtein distance - short labels only, so O(n*m) is fine."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    previous = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        current = [i]
+        for j, cb in enumerate(b, 1):
+            current.append(min(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + (ca != cb),
+            ))
+        previous = current
+    return previous[-1]
+
+
 
 def is_metadata_row(text):
 
     text_lower = text.lower()
 
-    metadata_keywords = [
-        "date:",
-        "time:",
-        "store:",
-        "register:",
-        "member since:",
-        "receipt no",
-        "receipt #",
-        "invoice",
-        "transaction"
-    ]
+    # Patterns, not just keywords: "Store 12" and "STORE #42" both appear on
+    # receipts, and a bare keyword list missed them - the store line was then
+    # parsed as a product named "Store #12".
+    metadata_patterns = list(lang_config.metadata_patterns())
 
     return any(
-        keyword in text_lower
-        for keyword in metadata_keywords
+        re.search(pattern, text_lower)
+        for pattern in metadata_patterns
     )
 
 
@@ -328,6 +495,13 @@ def parse_rows(rows):
 
         price = extract_price(row_text)
 
+
+        # A barcode / SKU line carries no commercial meaning. When the row is
+        # dominated by a long digit run, it is not a sale line.
+        if _identifier_only(row_text):
+            current_product = None
+            continue
+
         # -------------------------------------------------
         # Ignore summary / footer rows
         # -------------------------------------------------
@@ -346,21 +520,54 @@ def parse_rows(rows):
 
             name = remove_price(row_text)
 
-            # Remove quantity from beginning of name
+            # Remove the quantity token wherever it sits (leading "2 x CABLE"
+            # or trailing "CABLE 3X"); the name must not carry the count.
             if quantity != 1:
 
                 name = re.sub(
-                    rf"^\s*{quantity}(?=\s+|x\b|-)\s*",
+                    rf"^\s*{quantity}(?:\s*[x*@])?\s*",
                     "",
                     name,
                     flags=re.IGNORECASE
                 )
 
-            name = name.strip(" -:|")
+                name = re.sub(
+                    rf"(?<=\s){quantity}\s*[x*@]\s*$",
+                    "",
+                    name,
+                    flags=re.IGNORECASE
+                )
+
+            # A leftover number in the name means the price stripper could
+            # not match the OCR'd currency form ("s49,99"). It is price, not
+            # part of the product, so it goes.
+            name = re.sub(r"(?<![A-Za-z0-9])\d{1,7}\.\d{2}(?!\d)", "", name)
+
+            # Drop leftovers: the quantity mark plus any separator commas,
+            # pipes or underscores the printer left behind.
+            name = re.sub(r"\s*[x*@]\s*$", "", name)
+            name = re.sub(r"\s*[,;|_]+\s*$", "", name)
+            name = re.sub(r"\s{2,}", " ", name)
+            name = name.strip(" -:|,.\t")
 
             # Ignore empty names
 
             if not name:
+                continue
+
+            # Sanity gate. A genuine line item is a short label with a
+            # plausible price. Merged OCR blobs (a whole receipt read as one
+            # row, track listings from a music app, ...) are far longer and
+            # must never become inventory rows.
+            if len(name) > MAX_PRODUCT_NAME_LENGTH:
+                continue
+
+            # A name must contain real letters. "///" or "()" survive the
+            # price stripper as symbols and are layout noise, not products.
+            if sum(ch.isalpha() for ch in name) < 3:
+                continue
+
+            if price <= 0 or price > MAX_PLAUSIBLE_PRICE:
                 continue
 
             current_product = {
@@ -402,24 +609,54 @@ def parse_rows(rows):
 # Main
 # ---------------------------------------------------------
 
-if __name__ == "__main__":
+def save_items(items, database=True):
+    """
+    Persist parsed items to Postgres.
 
-    ocr_data = load_ocr_data()
+    `database=False` keeps everything local, which is what the tests and any
+    dry-run should use.
+    """
+    if not database:
+        return None
+    from inventory import save_products   # imported here, not at module load
 
-    rows = group_rows(ocr_data)
+    return save_products(items)
 
+
+def parse_receipt(ocr_json_path="output/ocr_data.json", y_threshold=35):
+    """
+    End-to-end: OCR JSON file -> structured product list.
+
+    Returns (rows, items) so callers can inspect the intermediate grouping.
+    """
+    ocr_data = load_ocr_data(ocr_json_path)
+    rows = group_rows(ocr_data, y_threshold=y_threshold)
+    return rows, parse_rows(rows)
+
+
+def _print_report(rows, items):
     print("Grouped Receipt Rows:")
     print("---------------------")
-
     for row in rows:
         print(" | ".join(row))
 
-    items = parse_rows(rows)
-
     print("\nParsed Items:")
     print("----------------")
-
     for item in items:
         print(item)
 
-    save_products(items)
+
+if __name__ == "__main__":
+
+    import sys
+
+    rows, items = parse_receipt()
+
+    _print_report(rows, items)
+
+    # `--dry-run` (or a missing DB) keeps the result local.
+    if "--dry-run" in sys.argv:
+        print("\n[dry-run] skipping database write")
+    else:
+        save_items(items)
+        print("\nSaved to database.")

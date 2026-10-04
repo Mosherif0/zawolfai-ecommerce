@@ -1,0 +1,19 @@
+TICKET	0.9996
+Bamboo brush	0.9825
+2/03/2025 - 11.36AM	0.6774
+Domicilio #####	0.9997
+Tienda 3	0.6961
+Folio 12454	0.8640
+ARTiCULO	0.6915
+PRECIO	0.9954
+Cepillo de bambu	0.9994
+S75	0.8824
+Cepillo portatil de bambu	0.9972
+S85	0.8978
+Estuche de Cepillo ecologico	0.7587
+S60	0.8032
+TOTAL	0.9990
+S220	0.8631
+IVA	0.9998
+S35.2	0.7573
+iGRACIAS POR TU COMPRAI	0.8119

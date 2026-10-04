@@ -1,0 +1,39 @@
+CASH RECEIPT	0.9181
+Mall Name	0.8072
+22 Main st. Bigcity	0.7329
+(888) 111-222-44	0.8925
+Date:	0.9979
+28/08/2017	1.0000
+Manager:	1.0000
+John Doe	0.6248
+Cashier:	0.7918
+Michael Smith	0.9212
+3222=	0.1811
+322=	0.1604
+# Yogurt	0.6654
+7.00	0.9975
+#	1.0000
+Spinach	1.0000
+4.50	0.8998
+# Tomatoes	0.9921
+9.90	0.8737
+# Cucumber	0.8486
+3.80	0.9997
+# Cabbage	0.8199
+2.20	0.6908
+#Milk	1.0000
+8.50	0.9952
+# Cereal variety pack	0.5319
+9.70	1.0000
+Total	0.7994
+45.60	0.9999
+Tax	0.9809
+0.00	0.9993
+Bank card:	0.9950
+45.60	0.9972
+XXXX XXXX XXXX XX58	0.9207
+28/08/2017	1.0000
+15.55	0.9999
+#Transaction	1.0000
+164GDF46646044	0.9083
+THANK YOU!	0.4138

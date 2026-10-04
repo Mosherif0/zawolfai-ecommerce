@@ -1,0 +1,378 @@
+[
+  {
+    "file": "aes receiptify #spotify.jpg",
+    "status": "not_a_receipt",
+    "validation": {
+      "is_receipt": false,
+      "score": 0.45,
+      "structure_score": 0.0,
+      "numbers_score": 1.0,
+      "shape_score": 0.8,
+      "matched_signals": [
+        "auth code",
+        "thank you",
+        "item count"
+      ],
+      "reason": "insufficient receipt structure (score 0.00; matched: auth code, thank you, item count)"
+    }
+  },
+  {
+    "file": "download (1).jpg",
+    "status": "not_a_receipt",
+    "validation": {
+      "is_receipt": false,
+      "score": 0.45,
+      "structure_score": 0.0,
+      "numbers_score": 1.0,
+      "shape_score": 0.8,
+      "matched_signals": [
+        "auth code",
+        "thank you",
+        "item count"
+      ],
+      "reason": "insufficient receipt structure (score 0.00; matched: auth code, thank you, item count)"
+    }
+  },
+  {
+    "file": "download (2).jpg",
+    "status": "not_a_receipt",
+    "validation": {
+      "is_receipt": false,
+      "score": 0.45,
+      "structure_score": 0.0,
+      "numbers_score": 1.0,
+      "shape_score": 0.8,
+      "matched_signals": [],
+      "reason": "insufficient receipt structure (score 0.00; matched: none)"
+    }
+  },
+  {
+    "file": "download (3).jpg",
+    "status": "not_a_receipt",
+    "validation": {
+      "is_receipt": false,
+      "score": 0.45,
+      "structure_score": 0.0,
+      "numbers_score": 1.0,
+      "shape_score": 0.8,
+      "matched_signals": [
+        "thank you",
+        "item count"
+      ],
+      "reason": "insufficient receipt structure (score 0.00; matched: thank you, item count)"
+    }
+  },
+  {
+    "file": "download.jpg",
+    "status": "ok",
+    "detections": 92,
+    "rows": 30,
+    "items": [
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe Ariel Set",
+        "price": 24.99
+      },
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe Blake Necklace",
+        "price": 19.99
+      },
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe Isabel Set",
+        "price": 29.99
+      },
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe Norah Earrings 1",
+        "price": 14.99
+      },
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe Bianca Earrings",
+        "price": 12.99
+      },
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe Sophia Necklace",
+        "price": 18.99
+      },
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe Lauren Earring",
+        "price": 11.99
+      },
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe Corina Earring",
+        "price": 13.99
+      },
+      {
+        "quantity": 1,
+        "name": "Cate & Chloe McKenzie Earring",
+        "price": 12.99
+      }
+    ],
+    "ocr_json": "download.ocr.json",
+    "processed": "download.jpg"
+  },
+  {
+    "file": "Grocery Receipts _ Swagbucks.jpg",
+    "status": "ok",
+    "detections": 37,
+    "rows": 21,
+    "items": [
+      {
+        "quantity": 1,
+        "name": "Yogurt",
+        "price": 7.0
+      },
+      {
+        "quantity": 1,
+        "name": "Spinach",
+        "price": 4.5
+      },
+      {
+        "quantity": 1,
+        "name": "Tomatoes",
+        "price": 9.9
+      },
+      {
+        "quantity": 1,
+        "name": "Cucumber",
+        "price": 3.8
+      },
+      {
+        "quantity": 1,
+        "name": "Cabbage",
+        "price": 2.2
+      },
+      {
+        "quantity": 1,
+        "name": "Milk",
+        "price": 8.5
+      },
+      {
+        "quantity": 1,
+        "name": "Cereal variety pack",
+        "price": 9.7
+      }
+    ],
+    "ocr_json": "Grocery_Receipts___Swagbucks.ocr.json",
+    "processed": "Grocery_Receipts___Swagbucks.jpg"
+  },
+  {
+    "file": "images (1).jpg",
+    "status": "ok",
+    "detections": 74,
+    "rows": 26,
+    "items": [
+      {
+        "quantity": 2,
+        "name": "ORGaNIC COFFEE BEANS (SKU:1284)",
+        "price": 425.98
+      },
+      {
+        "quantity": 1,
+        "name": "ALMOND MILK (SKU:)",
+        "price": 44.49
+      },
+      {
+        "quantity": 1,
+        "name": "WHOLE GRAIN BREAD (SKU:)",
+        "price": 35.99
+      },
+      {
+        "quantity": 3,
+        "name": "FRESH Avocados (SKU:)",
+        "price": 35.97
+      },
+      {
+        "quantity": 2,
+        "name": "GREEK YOGURT (SKU: )",
+        "price": 413.98
+      }
+    ],
+    "ocr_json": "images__1.ocr.json",
+    "processed": "images__1.jpg"
+  },
+  {
+    "file": "images (1).png",
+    "status": "ok",
+    "detections": 74,
+    "rows": 26,
+    "items": [
+      {
+        "quantity": 2,
+        "name": "ORGaNIC COFFEE BEANS (SKU:1284)",
+        "price": 425.98
+      },
+      {
+        "quantity": 1,
+        "name": "ALMOND MILK (SKU:)",
+        "price": 44.49
+      },
+      {
+        "quantity": 1,
+        "name": "WHOLE GRAIN BREAD (SKU:)",
+        "price": 35.99
+      },
+      {
+        "quantity": 3,
+        "name": "FRESH Avocados (SKU:)",
+        "price": 35.97
+      },
+      {
+        "quantity": 2,
+        "name": "GREEK YOGURT (SKU: )",
+        "price": 413.98
+      }
+    ],
+    "ocr_json": "images__1.ocr.json",
+    "processed": "images__1.jpg"
+  },
+  {
+    "file": "images (2).png",
+    "status": "ok",
+    "detections": 48,
+    "rows": 25,
+    "items": [],
+    "ocr_json": "images__2.ocr.json",
+    "processed": "images__2.jpg"
+  },
+  {
+    "file": "images.jpg",
+    "status": "ok",
+    "detections": 33,
+    "rows": 23,
+    "items": [],
+    "ocr_json": "images.ocr.json",
+    "processed": "images.jpg"
+  },
+  {
+    "file": "images.png",
+    "status": "ok",
+    "detections": 33,
+    "rows": 23,
+    "items": [],
+    "ocr_json": "images.ocr.json",
+    "processed": "images.jpg"
+  },
+  {
+    "file": "spotify.jpg",
+    "status": "not_a_receipt",
+    "validation": {
+      "is_receipt": false,
+      "score": 0.45,
+      "structure_score": 0.0,
+      "numbers_score": 1.0,
+      "shape_score": 1.0,
+      "matched_signals": [
+        "auth code",
+        "item count"
+      ],
+      "reason": "insufficient receipt structure (score 0.00; matched: auth code, item count)"
+    }
+  },
+  {
+    "file": "WhatsApp Image 2026-10-04 at 6.22.44 PM.jpeg",
+    "status": "ok",
+    "detections": 34,
+    "rows": 16,
+    "items": [
+      {
+        "quantity": 1,
+        "name": "Black Blazer",
+        "price": 59.99
+      },
+      {
+        "quantity": 1,
+        "name": "White Shirt",
+        "price": 45.95
+      },
+      {
+        "quantity": 1,
+        "name": "Wide Leg Jeans",
+        "price": 69.99
+      },
+      {
+        "quantity": 1,
+        "name": "Leather Belt",
+        "price": 25.0
+      }
+    ],
+    "ocr_json": "WhatsApp_Image_2026-10-04_at_6_22_44_PM.ocr.json",
+    "processed": "WhatsApp_Image_2026-10-04_at_6_22_44_PM.jpg"
+  },
+  {
+    "file": "WhatsApp Image 2026-10-04 at 6.23.19 PM.jpeg",
+    "status": "ok",
+    "detections": 29,
+    "rows": 13,
+    "items": [
+      {
+        "quantity": 1,
+        "name": "Denim Jeans",
+        "price": 49.99
+      }
+    ],
+    "ocr_json": "WhatsApp_Image_2026-10-04_at_6_23_19_PM.ocr.json",
+    "processed": "WhatsApp_Image_2026-10-04_at_6_23_19_PM.jpg"
+  },
+  {
+    "file": "WhatsApp Image 2026-10-04 at 6.39.59 PM.jpeg",
+    "status": "ok",
+    "detections": 27,
+    "rows": 15,
+    "items": [
+      {
+        "quantity": 1,
+        "name": "Women Sweater",
+        "price": 79.99
+      },
+      {
+        "quantity": 1,
+        "name": "Men Hoodie",
+        "price": 99.99
+      },
+      {
+        "quantity": 1,
+        "name": "Kids T-Shirt",
+        "price": 59.99
+      }
+    ],
+    "ocr_json": "WhatsApp_Image_2026-10-04_at_6_39_59_PM.ocr.json",
+    "processed": "WhatsApp_Image_2026-10-04_at_6_39_59_PM.jpg"
+  },
+  {
+    "file": "WhatsApp Image 2026-10-04 at 6.44.14 PM.jpeg",
+    "status": "ok",
+    "detections": 30,
+    "rows": 17,
+    "items": [
+      {
+        "quantity": 1,
+        "name": "KALLAX Shelf Unit",
+        "price": 2495.0
+      },
+      {
+        "quantity": 1,
+        "name": "Desk Lamp",
+        "price": 599.0
+      },
+      {
+        "quantity": 1,
+        "name": "Plant Pot",
+        "price": 149.0
+      },
+      {
+        "quantity": 1,
+        "name": "Storage Bo",
+        "price": 199.0
+      }
+    ],
+    "ocr_json": "WhatsApp_Image_2026-10-04_at_6_44_14_PM.ocr.json",
+    "processed": "WhatsApp_Image_2026-10-04_at_6_44_14_PM.jpg"
+  }
+]

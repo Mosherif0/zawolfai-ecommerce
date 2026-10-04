@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Receipt OCR · Zawolf</title>
+<style>
+  :root{
+    --bg:#0b1120; --card:#131c31; --line:#243149;
+    --fg:#e8edf7; --muted:#94a3b8; --accent:#38bdf8;
+    --ok:#34d399; --warn:#fbbf24; --bad:#f87171;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:system-ui,"Segoe UI",Tahoma,Arial,sans-serif;
+    display:flex; justify-content:center; padding:32px 16px;
+  }
+  html[dir="rtl"] body{font-family:"Segoe UI",Tahoma,Arial,sans-serif}
+  .wrap{width:100%; max-width:860px}
+  h1{font-size:1.35rem; margin:0 0 4px}
+  .sub{color:var(--muted); font-size:.88rem; margin-bottom:22px}
+
+  .lang{display:flex; gap:6px; background:var(--card);
+        border:1px solid var(--line); border-radius:999px; padding:4px; width:max-content}
+  .lang button{
+    background:transparent; border:0; color:var(--muted); cursor:pointer;
+    padding:7px 18px; border-radius:999px; font-size:.9rem; font-weight:600;
+  }
+  .lang button.on{background:var(--accent); color:#04121f}
+
+  .box{background:var(--card); border:1px solid var(--line);
+       border-radius:14px; padding:20px; margin:18px 0}
+
+  label.file{display:block; border:2px dashed var(--line); border-radius:12px;
+             padding:30px; text-align:center; cursor:pointer; transition:.15s}
+  label.file:hover{border-color:var(--accent)}
+  label.file input{display:none}
+
+  .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px}
+  button.go{
+    background:var(--accent); color:#04121f; border:0; border-radius:10px;
+    padding:12px 26px; font-weight:700; cursor:pointer; font-size:.95rem;
+  }
+  button.go:disabled{opacity:.5; cursor:not-allowed}
+
+  .verdict{border-radius:10px; padding:12px 14px; font-size:.9rem; margin-top:16px}
+  .verdict.ok{background:rgba(52,211,153,.12); border:1px solid var(--ok)}
+  .verdict.bad{background:rgba(248,113,113,.12); border:1px solid var(--bad)}
+  .verdict b{display:block; margin-bottom:4px}
+
+  table{width:100%; border-collapse:collapse; margin-top:8px; font-size:.92rem}
+  th,td{padding:9px 10px; text-align:start; border-bottom:1px solid var(--line)}
+  th{color:var(--muted); font-weight:600; font-size:.8rem; text-transform:uppercase}
+  td.p{font-weight:700; color:var(--ok); white-space:nowrap}
+
+  .bars{display:grid; gap:7px; margin-top:12px}
+  .bar{display:grid; grid-template-columns:110px 1fr 44px; gap:10px; align-items:center;
+       font-size:.8rem; color:var(--muted)}
+  .track{background:#0d1526; border-radius:5px; height:8px; overflow:hidden}
+  .fill{height:100%; background:var(--accent); border-radius:5px}
+
+  .sig{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+  .sig span{background:#0d1526; border:1px solid var(--line); color:var(--muted);
+            border-radius:6px; padding:3px 8px; font-size:.75rem}
+  .err{color:var(--bad); font-size:.9rem; margin-top:12px}
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); margin:18px 0 0}
+  .tabs button{background:transparent; border:0; border-bottom:2px solid transparent;
+    color:var(--muted); padding:10px 18px; cursor:pointer; font-size:.9rem; font-weight:600}
+  .tabs button.on{color:var(--accent); border-bottom-color:var(--accent)}
+  .panel{display:none} .panel.on{display:block}
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin:14px 0}
+  .stat{background:#0d1526; border:1px solid var(--line); border-radius:10px; padding:12px 14px}
+  .stat b{display:block; font-size:1.35rem; color:var(--fg)}
+  .stat span{color:var(--muted); font-size:.75rem; text-transform:uppercase}
+  td.num{white-space:nowrap; color:var(--muted)}
+  .mini{background:#0d1526; border:1px solid var(--line); color:var(--muted);
+        border-radius:6px; padding:3px 8px; font-size:.75rem; cursor:pointer}
+  .mini:hover{border-color:var(--bad); color:var(--bad)}
+  .mini.ok:hover{border-color:var(--accent); color:var(--accent)}
+  .toast{position:fixed; inset-block-end:22px; inset-inline-start:50%;
+         transform:translateX(-50%); background:var(--card); border:1px solid var(--accent);
+         border-radius:10px; padding:11px 20px; display:none; font-size:.9rem}
+  .toast.on{display:block}
+  .toolbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:14px 0}
+  input.search{background:#0d1526; border:1px solid var(--line); color:var(--fg);
+               border-radius:8px; padding:9px 12px; min-width:200px; font-size:.9rem}
+  code{background:#0d1526; padding:2px 6px; border-radius:4px; font-size:.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title">Receipt OCR</h1>
+  <div class="sub" id="sub">Upload a receipt — it is validated before anything is saved.</div>
+
+  <div class="tabs" role="tablist">
+    <button id="tab-scan" class="on" onclick="showTab('scan')" data-en="Scan receipt" data-ar="مسح فاتورة">Scan receipt</button>
+    <button id="tab-stock" onclick="showTab('stock')" data-en="Stock" data-ar="المخزون">Stock</button>
+    <button id="tab-receipts" onclick="showTab('receipts')" data-en="Receipts" data-ar="الفواتير">Receipts</button>
+  </div>
+
+  <div class="lang" role="tablist">
+    <button id="btn-en" class="on" onclick="setLang('en')">English</button>
+    <button id="btn-ar" onclick="setLang('ar')">العربية</button>
+  </div>
+
+  <div class="box panel on" id="panel-scan">
+    <label class="file">
+      <input type="file" id="file" accept="image/*">
+      <div id="dropText">Click to choose an image</div>
+    </label>
+    <div class="row">
+      <button class="go" id="go" onclick="run()" disabled>Process</button>
+      <label style="color:var(--muted);font-size:.85rem;cursor:pointer">
+        <input type="checkbox" id="save"> <span id="saveLabel">Save to inventory</span>
+      </label>
+      <span id="fname" style="color:var(--muted);font-size:.85rem"></span>
+    </div>
+    <div id="out"></div>
+  </div>
+
+  <div class="box panel" id="panel-stock">
+    <div class="toolbar">
+      <input class="search" id="q" placeholder="Search products…" oninput="loadStock()">
+      <span id="backend" style="color:var(--muted);font-size:.8rem"></span>
+      <span style="flex:1"></span>
+      <button class="mini ok" onclick="rebuild()" id="btnRebuild">Rebuild from ledger</button>
+      <button class="mini" onclick="resetTable('products')" id="btnClear">Clear stock</button>
+    </div>
+    <div class="stats" id="stats"></div>
+    <table><thead><tr><th>Product</th><th>Category</th><th>Supplier</th>
+      <th>Price</th><th>Qty</th><th></th></tr></thead>
+      <tbody id="stockBody"></tbody></table>
+  </div>
+
+  <div class="box panel" id="panel-receipts">
+    <div class="toolbar">
+      <span style="color:var(--muted);font-size:.8rem" id="rcount"></span>
+      <span style="flex:1"></span>
+      <button class="mini" onclick="loadReceipts()">Refresh</button>
+    </div>
+    <table><thead><tr><th>#</th><th>File</th><th>Store</th><th>Items</th>
+      <th>Total</th><th>Lang</th><th></th></tr></thead>
+      <tbody id="receiptsBody"></tbody></table>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const I18N = {
+  en:{
+    title:"Receipt OCR",
+    sub:"Upload a receipt — it is validated before anything is saved.",
+    drop:"Click to choose an image",
+    go:"Process",
+    accepted:"Looks like a real receipt",
+    rejected:"Not a receipt — nothing was saved",
+    items:"Extracted items",
+    saved:"Save to inventory",
+    savedMsg:"Saved to inventory",
+    qty:"Qty", name:"Name", price:"Price",
+    structure:"structure", numbers:"numbers", shape:"shape",
+    signals:"signals",
+    working:"Working…",
+    scan:"Scan receipt", stock:"Stock", receipts:"Receipts",
+    search:"Search products…", rebuild:"Rebuild from ledger", clear:"Clear stock",
+    adjust:"Adjust", sold:"Sold", damage:"Damage", returnIn:"Return in",
+    rebuildMsg:"Quantities rebuilt from the ledger",
+    clearConfirm:"Delete ALL stock, receipts and movements?",
+    delConfirm:"Delete this product and its history?",
+    units:"units", products:"products", value:"scanned value", oos:"out of stock",
+    empty:"Nothing here yet",
+  },
+  ar:{
+    title:"قراءة الفواتير",
+    sub:"ارفع الفاتورة — يتم التحقق منها قبل حفظ أي حاجة.",
+    drop:"اضغط لاختيار صورة",
+    go:"معالجة",
+    accepted:"هذه فاتورة حقيقية",
+    rejected:"مش فاتورة — لم يتم حفظ أي شيء",
+    items:"المنتجات المستخرجة",
+    saved:"احفظ في المخزون",
+    savedMsg:"تم الحفظ في المخزون",
+    qty:"الكمية", name:"المنتج", price:"السعر",
+    structure:"البنية", numbers:"الأرقام", shape:"الشكل",
+    signals:"المؤشرات",
+    working:"جارٍ المعالجة…",
+    scan:"مسح فاتورة", stock:"المخزون", receipts:"الفواتير",
+    search:"ابحث في المنتجات…", rebuild:"إعادة بناء من السجل", clear:"مسح المخزون",
+    adjust:"تعديل", sold:"بيع", damage:"تلف", returnIn:"مرتجع",
+    rebuildMsg:"تمت إعادة بناء الكميات من السجل",
+    clearConfirm:"حذف كل المخزون والفواتير والحركات؟",
+    delConfirm:"حذف هذا المنتج وسجله؟",
+    units:"قطعة", products:"منتج", value:"قيمة ممسوحة", oos:"خلص",
+    empty:"لا يوجد شيء بعد",
+  }
+};
+
+let lang = "en";
+
+function setLang(l){
+  lang = l;
+  const t = I18N[l];
+  document.documentElement.lang = l;
+  document.documentElement.dir  = (l === "ar") ? "rtl" : "ltr";
+  document.getElementById("title").textContent = t.title;
+  document.getElementById("sub").textContent   = t.sub;
+  document.getElementById("dropText").textContent = t.drop;
+  document.getElementById("go").textContent = t.go;
+  document.getElementById("saveLabel").textContent = t.saved;
+  document.querySelectorAll(".tabs button").forEach(b => {
+    b.textContent = b.dataset[l === "ar" ? "ar" : "en"];
+  });
+  if(document.getElementById("q")) document.getElementById("q").placeholder = t.search;
+  if(document.getElementById("panel-receipts").classList.contains("on")) loadReceipts();
+  document.getElementById("btn-en").classList.toggle("on", l === "en");
+  document.getElementById("btn-ar").classList.toggle("on", l === "ar");
+}
+
+document.getElementById("file").addEventListener("change", e => {
+  const f = e.target.files[0];
+  document.getElementById("go").disabled = !f;
+  document.getElementById("fname").textContent = f ? f.name : "";
+});
+
+function bar(label, value){
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  return `<div class="bar"><span>${label}</span>
+    <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+    <span>${pct}%</span></div>`;
+}
+
+async function run(){
+  const file = document.getElementById("file").files[0];
+  if(!file) return;
+  const t = I18N[lang];
+  const go = document.getElementById("go");
+  go.disabled = true; go.textContent = t.working;
+
+  const body = new FormData();
+  body.append("file", file);
+  body.append("lang", lang);
+  body.append("save", document.getElementById("save").checked ? "true" : "false");
+
+  try{
+    const res = await fetch("/api/process", {method:"POST", body});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || res.statusText);
+
+    const v = data.validation || {};
+    const verdict = data.ok
+      ? `<div class="verdict ok"><b>✓ ${t.accepted}</b>${data.message}</div>`
+      : `<div class="verdict bad"><b>✕ ${t.rejected}</b>${data.message}</div>`;
+
+    const bars = `<div class="bars">
+        ${bar(t.structure, v.structure_score)}
+        ${bar(t.numbers,   v.numbers_score)}
+        ${bar(t.shape,     v.shape_score)}
+      </div>`;
+
+    const sigs = (v.matched_signals || []).length
+      ? `<div class="sig">${t.signals}: ${(v.matched_signals||[]).map(s=>`<span>${s}</span>`).join("")}</div>`
+      : "";
+
+    let table = "";
+    if(data.items && data.items.length){
+      table = `<h3 style="font-size:.95rem;margin:18px 0 6px">${t.items}</h3>
+        <table><thead><tr><th>${t.name}</th><th>${t.qty}</th><th>${t.price}</th></tr></thead>
+        <tbody>${data.items.map(i=>`<tr><td>${i.name}</td><td>${i.quantity}</td>
+          <td class="p">${i.price}</td></tr>`).join("")}</tbody></table>`;
+    }
+
+    let savedBlock = "";
+    if(data.saved && data.saved.length){
+      savedBlock = `<div class="verdict ok" style="margin-top:14px"><b>✓ ${t.savedMsg}</b>` +
+        data.saved.map(s => `${s.action === "added" ? "+" : "="} ${s.name} · qty ${s.quantity}`).join("<br>") +
+        `</div>`;
+    }
+
+    document.getElementById("out").innerHTML = verdict + bars + sigs + table + savedBlock;
+  }catch(err){
+    const msg = (err.message || "") + "";
+    if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+      showSetupError();
+    } else {
+      document.getElementById("out").innerHTML = `<div class="err">${msg}</div>`;
+    }
+  }finally{
+    go.disabled = false; go.textContent = t.go;
+  }
+}
+
+function showTab(name){
+  ["scan","stock","receipts"].forEach(n => {
+    document.getElementById("tab-"+n).classList.toggle("on", n===name);
+    document.getElementById("panel-"+n).classList.toggle("on", n===name);
+  });
+  if(name === "stock") loadStock();
+  if(name === "receipts") loadReceipts();
+}
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("on");
+  setTimeout(()=>t.classList.remove("on"), 2600);
+}
+
+async function api(url, opts){
+  const r = await fetch(url, opts);
+  const d = await r.json();
+  if(!r.ok) throw new Error(d.detail || r.statusText);
+  return d;
+}
+
+async function loadStock(){
+  const t = I18N[lang];
+  try{
+    const [stats, data] = await Promise.all([
+      api("/api/warehouse/stats"),
+      api("/api/warehouse/products?search=" + encodeURIComponent(document.getElementById("q").value || ""))
+    ]);
+    document.getElementById("backend").textContent = stats.backend;
+    document.getElementById("stats").innerHTML = [
+      ["total_units", stats.total_units, t.units],
+      ["total_products", stats.total_products, t.products],
+      ["receipts_value", stats.receipts_value, t.value],
+      ["out_of_stock", stats.out_of_stock, t.oos],
+    ].map(([k,v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+
+    const body = document.getElementById("stockBody");
+    if(!data.products.length){ body.innerHTML = `<tr><td colspan="6" style="color:var(--muted)">${t.empty}</td></tr>`; return; }
+    body.innerHTML = data.products.map(p => `<tr>
+      <td><b>${p.name}</b></td>
+      <td class="num">${p.category || "—"}</td>
+      <td class="num">${p.supplier || "—"}</td>
+      <td class="p">${p.price}</td>
+      <td>${p.quantity}</td>
+      <td style="white-space:nowrap">
+        <button class="mini ok" onclick="adjust(${p.id},-1,'sale')">${t.sold}</button>
+        <button class="mini ok" onclick="adjust(${p.id},1,'return_in')">${t.returnIn}</button>
+        <button class="mini" onclick="adjust(${p.id},-1,'damage')">${t.damage}</button>
+        <button class="mini" onclick="del(${p.id},'${p.name.replace(/'/g,"")}')">✕</button>
+      </td></tr>`).join("");
+  }catch(e){ toast(e.message); }
+}
+
+async function adjust(id, delta, reason){
+  try{
+    const r = await api(`/api/warehouse/products/${id}/adjust`,
+      {method:"POST", headers:{"Content-Type":"application/json"},
+       body: JSON.stringify({delta, reason})});
+    toast(`${r.name}: ${r.previous_quantity} → ${r.quantity}`);
+    loadStock();
+  }catch(e){ toast(e.message); }
+}
+
+async function del(id, name){
+  if(!confirm(I18N[lang].delConfirm)) return;
+  try{ await api(`/api/warehouse/products/${id}`, {method:"DELETE"});
+       toast("deleted " + name); loadStock();
+  }catch(e){ toast(e.message); }
+}
+
+async function loadReceipts(){
+  try{
+    const d = await api("/api/warehouse/receipts");
+    document.getElementById("rcount").textContent = d.receipts.length + " scanned";
+    const body = document.getElementById("receiptsBody");
+    if(!d.receipts.length){ body.innerHTML = `<tr><td colspan="7" style="color:var(--muted)">${I18N[lang].empty}</td></tr>`; return; }
+    body.innerHTML = d.receipts.map(r => `<tr>
+      <td class="num">${r.id}</td><td>${r.source_file || "—"}</td>
+      <td>${r.store || "—"}</td><td class="num">${r.item_count}</td>
+      <td class="p">${r.total || "—"}</td><td class="num">${r.language || "—"}</td>
+      <td><button class="mini" onclick="delReceipt(${r.id})">✕</button></td>
+    </tr>`).join("");
+  }catch(e){ toast(e.message); }
+}
+
+async function delReceipt(id){
+  if(!confirm(I18N[lang].delConfirm)) return;
+  try{ await api(`/api/warehouse/receipts/${id}`, {method:"DELETE"}); toast("receipt "+id+" removed"); loadReceipts(); }
+  catch(e){ toast(e.message); }
+}
+
+async function rebuild(){
+  try{ const r = await api("/api/warehouse/rebuild", {method:"POST"});
+       toast(I18N[lang].rebuildMsg + " (" + r.rebuilt + ")"); loadStock();
+  }catch(e){ toast(e.message); }
+}
+
+async function resetTable(table){
+  if(!confirm(I18N[lang].clearConfirm)) return;
+  try{ const r = await api(`/api/warehouse/reset/${table}`, {method:"POST"});
+       toast(table + ": " + r.deleted + " deleted"); loadStock();
+  }catch(e){ toast(e.message); }
+}
+
+function showSetupError(){
+  document.getElementById("out").innerHTML =
+    `<div class="verdict bad"><b>Server not running</b>
+       Start it first, then open the page through it:<br><br>
+       <code>cd D:\\zawolf-project\\ocr</code><br>
+       <code>python app.py</code><br><br>
+       then visit <code>http://127.0.0.1:8000</code><br>
+       <span style="color:var(--muted)">Opening the HTML file directly (file://) cannot work —
+       the browser has no backend to send the receipt to.</span></div>`;
+}
+
+setLang("en");
+
+if (location.protocol === "file:") {
+  showSetupError();
+} else {
+  fetch("/api/languages")
+    .then(r => r.json())
+    .then(d => { if (d.active === "ar") setLang("ar"); })
+    .catch(showSetupError);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+LC WaIKIKI	0.4748
+Everyone deserves to dress well	0.9648
+LC Waikiki	0.7754
+Centre Alexandria	1.0000
+Store: 0488	0.9638
+Register:	0.9999
+05	1.0000
+Date: 11/19/2025	0.8018
+Time: 13:17	0.4744
+Women Sweater	1.0000
+79.99	0.9212
+Men Hoodie	0.9974
+99.99	0.9223
+Kids T-Shirt	0.7948
+59.99	0.7379
+Subtotal	1.0000
+239.97	0.9999
+Tax	0.9999
+12.00	0.9907
+Total	0.9108
+251.97	0.6739
+Payment	1.0000
+Cash	0.9990
+Status	0.9998
+APPROVED	0.9998
+Thank you for shopping with LC Waikiki	0.9844
+City	0.9459

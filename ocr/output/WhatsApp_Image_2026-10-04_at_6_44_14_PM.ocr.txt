@@ -1,0 +1,30 @@
+JKEA	0.5725
+IKEA Egypt	0.9842
+Cairo Festival	0.9521
+Store: 0010	0.8760
+Register:	0.9998
+12	1.0000
+Date: 11/25/2025	0.5789
+Time:	0.9994
+15.22	0.4027
+KALLAX Shelf Unit	0.9347
+2,495.00	0.9910
+Desk Lamp	0.9690
+599.00	0.5279
+Plant Pot	0.9997
+149.00	0.9982
+Storage Box	0.9994
+199.00	0.9975
+Subtotal	0.8599
+3,442.00	0.9969
+Tax	0.9999
+172.10	0.6906
+Total	1.0000
+3,614.10	0.9849
+Payment	1.0000
+Card	0.6703
+Status	0.9997
+APPROVED	0.9999
+00101202251125	0.9997
+Thank you for shopping at IKEA	0.9970
+city	0.7818
