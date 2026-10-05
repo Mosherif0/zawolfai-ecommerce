@@ -1,0 +1,97 @@
+<svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Brand Primary Gradient: Deep Teal (#042F34) -> Emerald (#76D7B7) -> Mint (#B5F2DB) -->
+    <linearGradient id="cwTealGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#042F34" />
+      <stop offset="45%" stop-color="#0E5E67" />
+      <stop offset="85%" stop-color="#76D7B7" />
+      <stop offset="100%" stop-color="#B5F2DB" />
+    </linearGradient>
+
+    <!-- Warm Amber / Gold Gradient for Growth Arrow & Highlights -->
+    <linearGradient id="cwAmberGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFC933" />
+      <stop offset="50%" stop-color="#FFB300" />
+      <stop offset="100%" stop-color="#FF9900" />
+    </linearGradient>
+
+    <!-- Secondary Mint Accent Gradient -->
+    <linearGradient id="cwMintGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B5F2DB" />
+      <stop offset="100%" stop-color="#76D7B7" />
+    </linearGradient>
+
+    <!-- Glowing Filters -->
+    <filter id="glowGold" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComponentTransfer in="blur" result="glow">
+        <feFuncA type="linear" slope="0.8"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="glowMint" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- CARTWISE ICON GROUP -->
+  <g class="cartwise-icon">
+    <!-- 1. Brain Cloud & Synapse Network (Background Intellect) -->
+    <!-- Brain Outer Lobe Curves -->
+    <path d="M 82 100 C 68 78 88 52 114 56 C 126 40 154 42 168 58 C 184 54 198 72 188 94 C 198 110 186 132 165 134" 
+          stroke="url(#cwTealGradient)" stroke-width="5.5" stroke-linecap="round" fill="none" opacity="0.85" />
+
+    <!-- Synapse Interconnecting Lines -->
+    <g stroke="url(#cwMintGradient)" stroke-width="3" stroke-linecap="round" opacity="0.9">
+      <line x1="114" y1="56" x2="136" y2="82" />
+      <line x1="168" y1="58" x2="136" y2="82" />
+      <line x1="136" y1="82" x2="106" y2="108" />
+      <line x1="136" y1="82" x2="162" y2="104" />
+      <line x1="162" y1="104" x2="188" y2="94" />
+      <line x1="106" y1="108" x2="82" y2="100" />
+    </g>
+
+    <!-- Brain Nodes (Mint & Gold Synapses) -->
+    <circle cx="114" cy="56" r="5.5" fill="#76D7B7" />
+    <circle cx="168" cy="58" r="5.5" fill="#76D7B7" />
+    <circle cx="136" cy="82" r="7" fill="#FFC933" filter="url(#glowGold)" />
+    <circle cx="106" cy="108" r="5" fill="#B5F2DB" filter="url(#glowMint)" />
+    <circle cx="162" cy="104" r="5" fill="#B5F2DB" filter="url(#glowMint)" />
+    <circle cx="82" cy="100" r="4.5" fill="#042F34" stroke="#76D7B7" stroke-width="2" />
+    <circle cx="188" cy="94" r="4.5" fill="#042F34" stroke="#76D7B7" stroke-width="2" />
+
+    <!-- 2. Shopping Cart Frame (Matching User Uploaded Logo) -->
+    <!-- Handle -> Base -> Front Lip -->
+    <path d="M 32 68 H 56 L 76 150 H 168 L 188 96 H 68" 
+          stroke="url(#cwTealGradient)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+    <!-- Cart Internal Wire Accent -->
+    <path d="M 84 130 H 160" stroke="url(#cwMintGradient)" stroke-width="3.5" stroke-linecap="round" opacity="0.65" />
+
+    <!-- 3. Cart Wheels (Dual Tone Deep Teal & Mint Hub) -->
+    <!-- Left Wheel -->
+    <circle cx="90" cy="180" r="13" fill="#042F34" stroke="url(#cwMintGradient)" stroke-width="4" />
+    <circle cx="90" cy="180" r="5" fill="#FFC933" />
+
+    <!-- Right Wheel -->
+    <circle cx="154" cy="180" r="13" fill="#042F34" stroke="url(#cwMintGradient)" stroke-width="4" />
+    <circle cx="154" cy="180" r="5" fill="#FFC933" />
+
+    <!-- 4. Prominent Upward Growth Chart Arrow (Bold Gold / Amber Accent) -->
+    <!-- Arrow Shaft passing through Cart & Brain -->
+    <path d="M 72 138 L 120 90 L 196 34" 
+          stroke="url(#cwAmberGradient)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#glowGold)" />
+
+    <!-- Arrowhead Peak -->
+    <path d="M 164 34 H 196 V 66" 
+          stroke="url(#cwAmberGradient)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#glowGold)" />
+  </g>
+</svg>
