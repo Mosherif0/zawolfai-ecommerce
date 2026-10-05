@@ -60,6 +60,36 @@ async def serve_index():
 @app.get("/health", tags=["Health"])
 async def health_check():
     """
-    Health check endpoint.
+    Health check.
+
+    Returns 200 even when the catalog failed to load, with status="degraded".
+    A health endpoint that raises tells an operator nothing about WHICH
+    dependency broke, so the load state is reported as data instead.
+
+    The `dependencies` block reports the other services (stock, forecasting,
+    recommendations) the way a load balancer needs: the chatbot can be healthy
+    while one of them is down, and that is not a reason to restart this pod.
     """
-    return {"status": "ok"}
+    from app.services.catalog_service import get_catalog_service
+
+    catalog = get_catalog_service()
+    try:
+        from app.services.backends import probe_all
+        dependencies = probe_all()
+    except Exception as exc:
+        dependencies = {"error": str(exc)[:120]}
+
+    return {
+        "status": "ok" if catalog.available else "degraded",
+        "service": "chatbot",
+        "catalog_loaded": catalog.available,
+        "product_count": catalog.size,
+        "catalog_error": catalog.load_error,
+        "dependencies": dependencies,
+    }
+
+
+@app.get("/health/catalog", tags=["Health"])
+async def health_catalog():
+    """Same shape as the other services, so one probe works everywhere."""
+    return await health_check()

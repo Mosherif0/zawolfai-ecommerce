@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from pathlib import Path
@@ -8,9 +9,11 @@ from google import genai
 from google.genai import types
 
 from app.services.conversation import conversation_service
-from app.services.mock_data import get_business_context
 from app.services.catalog_service import CatalogProduct, expand_query, get_catalog_service
+from app.services.business_context import collect_business_context
 from app.models.chat import ProductItem
+
+logger = logging.getLogger(__name__)
 
 # Default model + fallback candidates used when GEMINI_MODEL fails
 # (e.g. 404 "no longer available to new users" or 503 "high demand").
@@ -97,8 +100,12 @@ class GeminiService:
             else:
                 base_prompt = "أنت مساعد ذكي ودود وعملي لخدمة العملاء والمنتجات."
 
-            business_context = get_business_context()
-            self._base_instruction = f"{base_prompt}\n\n{business_context}"
+            # The old mock business context (ORD-1001 and friends) is no longer
+            # injected: it is fictional, and with real stock and forecast
+            # services attached it made the model answer from the demo instead
+            # of from live data - it would claim an order was "Shipped" while
+            # the real question was about warehouse stock.
+            self._base_instruction = base_prompt
 
         self.system_instruction = self._base_instruction
 
@@ -112,16 +119,19 @@ class GeminiService:
         real catalog and invents prices.
         """
         return (
-                    "\n\n--- قواعد الكتالوج (CATALOG RULES) ---\n"
-                    "1) المنتجات تحت عنوان REAL CATALOG هي المتوفرة فعلياً في المتجر.\n"
-                    "2) ممنوع تخترع منتج أو سعر أو لون أو ماركة غير مذكور في هذا القسم.\n"
-                    "   لو المنتج المطلوب مش موجود، صرّح إنك مش لاقيه واعرض الأقرب.\n"
-                    "3) استخدم السعر المذكور حرفياً بالجنيه، من غير تحويل ولا تقريب.\n"
-                    "4) الـproduct_id هو المرجع الوحيد للمنتج، ومينفعش تخترع رقم.\n"
-                    "5) راجع نفسك قبل الرد: لو ذكرت منتج، لازم يكون اسم من REAL CATALOG.\n"
-                    "   أي اسم تاني (زي Classic Product أو Basic T-Shirt أو Socks Pack\n"
-                    "   أو Premium Hoodie) بيانات قديمة مش موجودة في الكتالوج — ممنوع تنطقها.\n"
-                )
+                            "\n\n--- قواعد الكتالوج (CATALOG RULES) ---\n"
+                            "1) REAL CATALOG بيقول إيه المنتجات اللي بنبيعها. "
+                            "الـLIVE BUSINESS DATA فوق بيقول إيه المتاح في المخزن دلوقتي.\n"
+                            "   لو الـSTOCK block موجود في الرد، هو المرجع للكمية، "
+                            "ومينفعش تقول 'مفيش متاح' لمنتج مكتوب فيه.\n"
+                            "2) ممنوع تخترع منتج أو سعر أو لون أو ماركة غير مذكور في الأقسام دي. "
+                            "   لو المنتج المطلوب مش موجود، صرّح إنك مش لاقيه واعرض الأقرب.\n"
+                            "3) استخدم السعر المذكور حرفياً بالجنيه، من غير تحويل ولا تقريب.\n"
+                            "4) الـproduct_id هو المرجع الوحيد للمنتج، ومينفعش تخترع رقم.\n"
+                            "5) راجع نفسك قبل الرد: لو ذكرت منتج، لازم يكون اسم من REAL CATALOG.\n"
+                            "   أي اسم تاني (زي Classic Product أو Basic T-Shirt أو Socks Pack\n"
+                            "   أو Premium Hoodie) بيانات قديمة مش موجودة في الكتالوج — ممنوع تنطقها.\n"
+                        )
 
     def _build_catalog_context(self, products: List[CatalogProduct]) -> str:
         if not products:
@@ -139,6 +149,48 @@ class GeminiService:
             "=========================================================\n"
             + self._catalog_rules()
         )
+
+    def _build_business_context(self, message: str) -> str:
+            """
+            Live data from the other services (stock + demand).
+
+            Injected alongside the catalogue but kept clearly separate: the
+            catalogue is what we SELL, this is what we currently HAVE and what is
+            expected to be demanded. A product can be in the catalogue but out of
+            stock, and conflating the two is exactly the mistake that makes a
+            shopping assistant untrustworthy.
+
+            The rules block is not decoration. Without an explicit instruction to
+            prefer this data, the model answers from the catalogue alone and
+            reports "we have no shirts" while 14 shirts sit in the warehouse: the
+            numbers were in the prompt, but nothing told the model to trust them
+            over the product list.
+
+            Never raises: if every downstream service is down this returns a short
+            note, and the catalogue half of the answer still works.
+            """
+            try:
+                block, _diagnostics = collect_business_context(message)
+            except Exception as exc:  # defensive: a business lookup must not 500 a chat
+                logger.warning("business context failed: %s", exc)
+                return ""
+
+            if not block:
+                return ""
+
+            return (
+                "\n\n"
+                "========== LIVE BUSINESS DATA (البيانات اللحظية) ==========\n"
+                "الأولوية ليك في المواضيع دي:\n"
+                "1) لو فيه [STOCK]، فده المخزن الحقيقي. أي منتج موجود فيه = متاح، "
+                "و quantities هي الأرقام الصح. متقولش 'مفيش' لمproduct موجود في السطر ده.\n"
+                "2) لو فيه [FORECAST]، ده توقع الأسبوع الجاي - اذكره كـتوقع مش كحقيقة.\n"
+                "3) لو الخدمة مش متاحة، ماتخترعش رقم؛ قل للعميل إن المعلومة مش متاحة دلوقتي.\n"
+                "4) الكتالوج بيقول إيه المنتجات اللي بنبيعها؛ الـSTOCK بيقول إيه اللي "
+                "متاح فعلاً دلوقتي. الاتنين مكملين لبعض، والاتنين صح.\n\n"
+                + block
+                + "\n==========================================================="
+            )
 
     def _init_client(self) -> None:
         if self.api_key:
@@ -386,10 +438,11 @@ class GeminiService:
 
         # 2) Ground the model on exactly these products.
         config = types.GenerateContentConfig(
-            system_instruction=self.system_instruction
-            + self._build_catalog_context(retrieved),
-            temperature=0.7,
-        )
+                    system_instruction=self.system_instruction
+                    + self._build_catalog_context(retrieved)
+                    + self._build_business_context(message),
+                    temperature=0.7,
+                )
         contents = self._build_contents(history, message)
 
         try:

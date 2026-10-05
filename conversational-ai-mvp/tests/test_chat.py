@@ -32,10 +32,31 @@ def force_local_mock_mode(monkeypatch):
 
 
 def test_health_check():
-    """Test GET /health endpoint returns status ok."""
+    """
+    GET /health returns 200 with status ok.
+
+    The payload grew beyond {"status": "ok"} when /health was aligned with the
+    other services: it now also reports catalog state and the downstream
+    dependencies (stock, forecasting, recommendations), so one probe works
+    across the whole backend. Asserting the whole dict made this test fail
+    every time a field was added, which trains you to ignore it.
+    """
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["service"] == "chatbot"
+    assert body["catalog_loaded"] is True
+    assert body["catalog_error"] is None
+    assert isinstance(body["dependencies"], dict)
+
+
+def test_health_catalog_alias():
+    """The /health/catalog alias must return the same payload shape."""
+    body = client.get("/health/catalog").json()
+    assert body["status"] == "ok"
+    assert body["service"] == "chatbot"
 
 
 def test_serve_index():

@@ -31,8 +31,10 @@ demand_forecasting/output/*
 ocr/output/
 
 # ---- model artefacts -----------------------------------------------------
-# The trained LightGBM booster IS tracked on purpose: demand_forecasting's API
-# loads models/lgbm_poisson.txt at startup and returns 503 without it, so a
-# fresh clone has to work without re-running a 3-minute training job.
+# The trained boosters ARE tracked on purpose: the forecasting API loads
+# models/lgbm_poisson.txt at startup and returns 503 without it, so a fresh
+# clone must work without re-running a ~90s training job. .gitattributes marks
+# them -text so git cannot apply CRLF translation and corrupt the tree data.
+!demand_forecasting/models/
 !demand_forecasting/models/*.txt
 !demand_forecasting/models/*.json

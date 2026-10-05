@@ -1,0 +1,6 @@
+# Model files are binary: git must never apply CRLF translation to them.
+# eol=lf keeps LightGBM/XGBoost boosters byte-identical across clones; a
+# text conversion corrupts the tree structure and the model fails to load
+# with 'Model format error, expect a tree here'.
+demand_forecasting/models/* -text
+

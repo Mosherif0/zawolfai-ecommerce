@@ -102,6 +102,7 @@ class ForecastEngine:
 
         self.model = None
         self.frame: Optional[pd.DataFrame] = None
+        self._predictions: Optional[pd.DataFrame] = None
         self.features: List[str] = []
         self.threshold = 0.12
         self.last_week: Optional[pd.Timestamp] = None
@@ -167,15 +168,33 @@ class ForecastEngine:
         return pipeline.build_features(extended, pipeline.Config())
 
     def predict_all(self) -> pd.DataFrame:
-        """Predictions for every article in the next week."""
+        """
+        Predictions for every article in the next week.
+
+        Cached: rebuilding the feature matrix over the extended history took
+        ~18 seconds per call, so any sane client timeout gave up before the
+        model answered, while the model itself predicts in milliseconds. The
+        panel is fixed for the life of the process (the training CSV does not
+        change while the service runs), so the result is computed once and
+        reused. invalidate() drops it if that assumption ever changes.
+        """
+        if self._predictions is not None:
+            return self._predictions
+
         import forecast as pipeline
 
         future_frame = self._future_frame()
         next_week = self.last_week + timedelta(weeks=HORIZON_WEEKS)
-        target = future_frame[future_frame.week_start == next_week]
-        target = target.copy()
+        target = future_frame[future_frame.week_start == next_week].copy()
         target["prediction"] = self.model.predict(target[self.features])
+
+        self._predictions = target
         return target
+
+    def invalidate(self) -> None:
+        """Drop the cached predictions, e.g. after reloading training data."""
+        self._predictions = None
+
 
     def names(self) -> Dict[int, str]:
         inventory = DATA_DIR / "inventory.csv"
@@ -193,6 +212,18 @@ async def lifespan(app: FastAPI):
     ENGINE.load()
     if ENGINE.ready:
         print(f"[ OK ] forecasting ready: {ENGINE.frame['article_id'].nunique()} articles")
+
+        # Warm the prediction cache at startup. Doing it lazily means the first
+        # caller pays ~18s, and any client timeout smaller than that gets an
+        # "unavailable" answer instead of a number.
+        import time as _time
+        _t0 = _time.perf_counter()
+        try:
+            ENGINE.predict_all()
+            print(f"[ OK ] predictions warm in {(_time.perf_counter() - _t0):.1f}s")
+        except Exception as exc:
+            print(f"[WARN] could not warm predictions: {exc}")
+
     else:
         print(f"[WARN] forecasting not ready: {ENGINE.error}")
     yield
