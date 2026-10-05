@@ -38,3 +38,7 @@ ocr/output/
 !demand_forecasting/models/
 !demand_forecasting/models/*.txt
 !demand_forecasting/models/*.json
+
+# Live HTTP smoke scripts are not pytest tests; they break collection.
+_smoke_script_*.bak
+test_api.py
