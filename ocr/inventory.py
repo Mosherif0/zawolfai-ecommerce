@@ -2,16 +2,10 @@
 Compatibility shim.
 
 The warehouse layer (warehouse.py + schema.py) is the single source of
-truth for stock. This module previously held its own flat 'products' table
-implementation, which meant two modules writing the same database through
-different code paths - the split that let a receipt write to one table while
-/api/warehouse read another.
+truth for inventory data.
 
-Everything here delegates to warehouse.py, so any remaining caller (older
-notebooks, the CLI, third-party scripts) keeps working and produces the same
-numbers. The flat table is no longer used.
-
-Prefer importing warehouse directly in new code.
+This module delegates all database operations to warehouse.py so older
+callers can continue to work without maintaining a second database layer.
 """
 
 from __future__ import annotations
@@ -22,28 +16,29 @@ import warehouse as _warehouse
 
 
 def backend() -> str:
-    """'postgres' or 'sqlite'."""
+    """Return the active database backend: 'postgres' or 'sqlite'."""
     return _warehouse.backend()
 
 
 def using_postgres() -> bool:
+    """Return True when PostgreSQL is the active backend."""
     return _warehouse.backend() == "postgres"
 
 
 def init_db() -> None:
-    """Create the warehouse schema if it does not exist."""
-    if hasattr(_warehouse, "init_db"):
-        _warehouse.init_db()
+    """Ensure the warehouse schema exists."""
+    _warehouse.init_db()
 
 
 def save_products(items: Iterable[dict]) -> List[dict]:
     """
-    Upsert items and record the movement.
+    Save OCR products through the warehouse layer.
 
-    Returns a flat per-item report so older callers expecting
-    [{'action': ..., 'name': ..., 'quantity': ...}] keep working.
+    Each call records one receipt and its receipt items.
     """
+
     result = _warehouse.record_receipt(list(items))
+
     return [
         {
             "name": entry["name"],
@@ -55,21 +50,35 @@ def save_products(items: Iterable[dict]) -> List[dict]:
     ]
 
 
-def log_receipt(source_file: Optional[str], items: Iterable[dict]) -> int:
+def log_receipt(
+    source_file: Optional[str],
+    items: Iterable[dict],
+) -> int:
     """
-    NOTE: receipts are recorded by save_products via warehouse.record_receipt,
-    which already writes the receipt and its items in one transaction. Calling
-    this separately would double-count. It is kept only so existing callers do
-    not crash; it returns the number of items it was handed.
+    Compatibility function for older callers.
+
+    Receipts are already recorded by save_products() through
+    warehouse.record_receipt(), so this function must not create
+    another receipt or double-count inventory.
     """
+
+    _ = source_file
+
     return len(list(items))
 
 
 def list_products() -> List[dict]:
+    """Return all products."""
     return _warehouse.list_products()
 
 
 def reset_database() -> None:
-    """Clear every table (used by tests)."""
-    for table in ("stock_movements", "receipt_items", "receipts", "products"):
-        _warehouse.reset_table(table)
+    """
+    Clear all inventory tables.
+
+    Child table receipt_items is cleared before its parent tables.
+    """
+
+    _warehouse.reset_table("receipt_items")
+    _warehouse.reset_table("receipts")
+    _warehouse.reset_table("products")
