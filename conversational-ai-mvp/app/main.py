@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -6,11 +6,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.chat import router as chat_router
 from app.api.catalog import router as catalog_router
+from app.api.platform import router as platform_router
 
 app = FastAPI(
-    title="Conversational AI Assistant MVP",
-    description="A clean, lightweight Conversational AI Assistant powered by Google Gemini with conversation memory and mock business data.",
-    version="1.0.0"
+    title="CartWise AI E-Commerce Automation Platform",
+    description="Integrated AI suite: Egyptian Arabic RAG Chatbot, Demand Forecasting, OCR Invoice Intake & Smart Recommendations.",
+    version="2.0.0"
 )
 
 # CORS configuration for local development
@@ -30,9 +31,6 @@ app.add_middleware(
 # Static directory setup
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 if STATIC_DIR.exists():
-    # Product images are ~290KB each and immutable (they are copied once by
-    # scripts/sync_images.py), so a long cache avoids re-downloading them on
-    # every conversation turn.
     class CachedStatic(StaticFiles):
         def file_response(self, *args, **kwargs):
             resp = super().file_response(*args, **kwargs)
@@ -44,6 +42,7 @@ if STATIC_DIR.exists():
 # Include API Routers
 app.include_router(chat_router)
 app.include_router(catalog_router)
+app.include_router(platform_router)
 
 
 @app.get("/", include_in_schema=False)

@@ -36,6 +36,3 @@ ocr/output/
 # fresh clone has to work without re-running a 3-minute training job.
 !demand_forecasting/models/*.txt
 !demand_forecasting/models/*.json
-
-# ---- nested junction ignore ----------------------------------------------
-zawolfai-ecommerce/
