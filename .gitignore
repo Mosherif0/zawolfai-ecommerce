@@ -42,3 +42,6 @@ ocr/output/
 # Live HTTP smoke scripts are not pytest tests; they break collection.
 _smoke_script_*.bak
 test_api.py
+.kilo/
+cartwise-frontend/
+ocr/input/sample_invoice.txt

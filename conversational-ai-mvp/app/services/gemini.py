@@ -121,74 +121,20 @@ class GeminiService:
         return (
                             "\n\n--- قواعد الكتالوج (CATALOG RULES) ---\n"
                             "1) REAL CATALOG بيقول إيه المنتجات اللي بنبيعها. "
-                            "الـLIVE BUSINESS DATA فوق بيقول إيه المتاح في المخزن دلوقتي.\n"
-                            "   لو الـSTOCK block موجود في الرد، هو المرجع للكمية، "
-                            "ومينفعش تقول 'مفيش متاح' لمنتج مكتوب فيه.\n"
-                            "2) ممنوع تخترع منتج أو سعر أو لون أو ماركة غير مذكور في الأقسام دي. "
-                            "   لو المنتج المطلوب مش موجود، صرّح إنك مش لاقيه واعرض الأقرب.\n"
-                            "3) استخدم السعر المذكور حرفياً بالجنيه، من غير تحويل ولا تقريب.\n"
-                            "4) الـproduct_id هو المرجع الوحيد للمنتج، ومينفعش تخترع رقم.\n"
-                            "5) راجع نفسك قبل الرد: لو ذكرت منتج، لازم يكون اسم من REAL CATALOG.\n"
-                            "   أي اسم تاني (زي Classic Product أو Basic T-Shirt أو Socks Pack\n"
-                            "   أو Premium Hoodie) بيانات قديمة مش موجودة في الكتالوج — ممنوع تنطقها.\n"
-                        )
-
-    def _build_catalog_context(self, products: List[CatalogProduct]) -> str:
-        if not products:
-            return (
-                "\n\n--- كتالوج المنتجات ---\n"
-                "(مفيش منتجات مطابقة للرسالة دي)\n"
-            )
-        svc = get_catalog_service()
-        return (
-            "\n\n"
-            "========== REAL CATALOG (المصدر الحقيقي الوحيد) ==========\n"
-            "المنتجات دي هي اللي بيتم بيها البيع. منتج غير مذكور هنا = غير موجود.\n\n"
-            + svc.format_context(products)
-            + "\n\n"
-            "=========================================================\n"
-            + self._catalog_rules()
-        )
-
-    def _build_business_context(self, message: str) -> str:
-            """
-            Live data from the other services (stock + demand).
-
-            Injected alongside the catalogue but kept clearly separate: the
-            catalogue is what we SELL, this is what we currently HAVE and what is
-            expected to be demanded. A product can be in the catalogue but out of
-            stock, and conflating the two is exactly the mistake that makes a
-            shopping assistant untrustworthy.
-
-            The rules block is not decoration. Without an explicit instruction to
-            prefer this data, the model answers from the catalogue alone and
-            reports "we have no shirts" while 14 shirts sit in the warehouse: the
-            numbers were in the prompt, but nothing told the model to trust them
-            over the product list.
-
-            Never raises: if every downstream service is down this returns a short
-            note, and the catalogue half of the answer still works.
-            """
-            try:
-                block, _diagnostics = collect_business_context(message)
-            except Exception as exc:  # defensive: a business lookup must not 500 a chat
-                logger.warning("business context failed: %s", exc)
-                return ""
-
-            if not block:
-                return ""
-
-            return (
-                "\n\n"
                 "========== LIVE BUSINESS DATA (البيانات اللحظية) ==========\n"
                 "الأولوية ليك في المواضيع دي:\n"
-                "1) لو فيه [STOCK]، فده المخزن الحقيقي. أي منتج موجود فيه = متاح، "
-                "و quantities هي الأرقام الصح. متقولش 'مفيش' لمproduct موجود في السطر ده.\n"
+                "1) لو فيه [STOCK]، فده المخزن الحقيقي: أي منتج سطره موجود = متاح، "
+                "والـquantity هو الرقم الصح. متقولش 'مفيش' لمنتج مكتوب فيه.\n"
                 "2) لو فيه [FORECAST]، ده توقع الأسبوع الجاي - اذكره كـتوقع مش كحقيقة.\n"
-                "3) لو الخدمة مش متاحة، ماتخترعش رقم؛ قل للعميل إن المعلومة مش متاحة دلوقتي.\n"
-                "4) الكتالوج بيقول إيه المنتجات اللي بنبيعها؛ الـSTOCK بيقول إيه اللي "
-                "متاح فعلاً دلوقتي. الاتنين مكملين لبعض، والاتنين صح.\n\n"
+                "3) لو الخدمة مش متاحة، ماتخترعش رقم؛ قل للعميل إن المعلومة مش متاحة.\n"
+                "4) الكتالوج بيقول إيه المنتجات اللي بنبيعها؛ الـSTOCK بيقول إيه المتاح "
+                "فعلاً دلوقتي. الاتنين مكملين做一些.\n"
+                "5) الـSTOCK سجل مستقل: لو فيه سطر منتج في الـSTOCK، ده موجود فعلاً في "
+                "المخزن حتى لو مفيش له اسم مطابق في REAL CATALOG. متستخدمش غياب المنتج "
+                "من الكتالوج كدليل على إنه مش متاح.\n"
+                "6) الأولوية للـSTOCK في أي سؤال عن 'متاح؟' أو 'فيه كام؟'.\n\n"
                 + block
+                + "\n==========================================================="
                 + "\n==========================================================="
             )
 
@@ -318,6 +264,50 @@ class GeminiService:
             bits.append(product.brand)
 
         return " · ".join(bits[:3])
+
+    def _build_business_context(self, message: str) -> str:
+        """
+        Fetch live business context (stock, forecast) for the message.
+
+        Delegates to business_context.collect_business_context which decides
+        whether the message needs stock/demand data and fetches only what is
+        needed. Returns the text block to inject into the system prompt.
+        """
+        block, _ = collect_business_context(message)
+        return block
+
+    def _build_catalog_context(self, products: List[CatalogProduct]) -> str:
+        """
+        Build the per-request catalog block injected into the system prompt.
+
+        This is the ONLY source of product truth for the model. Without it the
+        model has no idea what products exist, their prices, or their colors -
+        and it will hallucinate. The block is built fresh each turn so the
+        model always sees exactly the products retrieved for THIS message.
+        """
+        if not products:
+            return ""
+
+        lines = [
+            "\n\n--- REAL CATALOG (الكتالوج الحقيقي) ---",
+            "دي المنتجات اللي بنبيعها فعلاً. الأسعار والألوان دي حقيقية:",
+            "",
+        ]
+        for p in products:
+            parts = [f"• {p.name}"]
+            if p.egp_price:
+                parts.append(f"السعر: {p.egp_price} جنيه")
+            if p.category_ar:
+                parts.append(f"الفئة: {p.category_ar}")
+            if p.color:
+                parts.append(f"اللون: {p.color}")
+            if p.brand:
+                parts.append(f"البراند: {p.brand}")
+            if p.description:
+                parts.append(f"الوصف: {p.description}")
+            lines.append(" | ".join(parts))
+        lines.append("--- نهاية الكتالوج ---")
+        return "\n".join(lines)
 
     def _build_contents(self, history: List[dict], message: str) -> List[types.Content]:
         """Builds the multi-turn contents payload sent to Gemini."""

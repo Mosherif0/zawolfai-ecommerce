@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CartWise — Intelligent E-Commerce Automation Platform</title>
+
+    <!-- Google Fonts (trimmed weights — only what the UI actually uses) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://unpkg.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="preload" href="images/logo.svg" as="image" type="image/svg+xml">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Inter:wght@400;600;700&family=Outfit:wght@600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Feather / Lucide Icons & ApexCharts (deferred — no render blocking) -->
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts" defer></script>
+
+    <!-- Custom CSS + JS (single version — bump to bust cache) -->
+    <link rel="stylesheet" href="style.css?v=6.0.0">
+    <script>
+    // Boot the app only after ALL deferred scripts (lucide + apexcharts + app) finished.
+    window.addEventListener('load', function () {
+        if (window.__cartwiseBooted) window.__cartwiseBooted();
+    });
+    </script>
+</head>
+
+<body>
+
+    <div class="app-layout">
+        <!-- Sidebar Navigation (Matching Image 2 & 3) -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-logo" onclick="switchView('landing')">
+                    <div class="brand-logo-icon">
+                        <img src="images/logo.svg" alt="CartWise AI Logo" class="brand-logo-img">
+                    </div>
+                    <div class="brand-text">
+                        <span class="brand-name">CART<span class="brand-accent">WISE</span></span>
+                        <span class="brand-tagline" data-i18n="tagline">E-Commerce AI Suite</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="sidebar-menu" id="sidebarMenu">
+                <button class="menu-item active" data-view="landing" onclick="switchView('landing')">
+                    <i data-lucide="home"></i>
+                    <span data-i18n="nav_home">Home</span>
+                </button>
+                <button class="menu-item" data-view="dashboard" onclick="switchView('dashboard')">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span data-i18n="nav_dashboard">Dashboard</span>
+                </button>
+                <button class="menu-item" data-view="ocr" onclick="switchView('ocr')">
+                    <i data-lucide="file-text"></i>
+                    <span data-i18n="nav_ocr">OCR Invoices</span>
+                </button>
+                <button class="menu-item" data-view="forecasting" onclick="switchView('forecasting')">
+                    <i data-lucide="trending-up"></i>
+                    <span data-i18n="nav_forecasting">Demand Forecast</span>
+                </button>
+                <button class="menu-item" data-view="storefront" onclick="switchView('storefront')">
+                    <i data-lucide="shopping-bag"></i>
+                    <span data-i18n="nav_storefront">Store</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <!-- Theme Switcher -->
+                <button class="icon-btn-full" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Theme">
+                    <i data-lucide="sun" class="sun-icon"></i>
+                    <i data-lucide="moon" class="moon-icon"></i>
+                    <span data-i18n="lbl_theme">Theme Mode</span>
+                </button>
+
+                <!-- Language Switcher -->
+                <button class="lang-btn-full" id="langToggleBtn" onclick="toggleLanguage()">
+                    <i data-lucide="globe"></i>
+                    <span id="langText">عربي</span>
+                </button>
+
+                <!-- Brand Owner Auth -->
+                <div class="sidebar-auth">
+                    <div class="auth-identity">
+                        <div class="user-avatar">
+                            <i data-lucide="store"></i>
+                        </div>
+                        <div class="user-info">
+                            <div class="user-name" data-i18n="auth_guest_name">Guest Visitor</div>
+                            <div class="user-role" data-i18n="user_role">Brand Owner</div>
+                        </div>
+                    </div>
+                    <div class="auth-actions">
+                        <button class="btn btn-primary btn-sm btn-block" onclick="openAuthModal('signin')">
+                            <i data-lucide="log-in"></i>
+                            <span data-i18n="btn_signin">Sign In</span>
+                        </button>
+                        <button class="btn btn-secondary btn-sm btn-block" onclick="openAuthModal('signup')">
+                            <i data-lucide="user-plus"></i>
+                            <span data-i18n="btn_signup">Sign Up</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main View Container -->
+        <main class="app-main">
+
+            <!-- Top Header Bar inside Main Area for Quick Status -->
+            <header class="top-bar">
+                <div class="top-search">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="topSearchInput" placeholder="Search SKUs, invoices, forecast..." data-i18n-ph="ph_search" oninput="handleTopSearch(this.value)">
+                </div>
+                <div class="top-actions">
+                    <button class="btn btn-primary btn-sm" onclick="switchView('dashboard')">
+                        <i data-lucide="radio"></i>
+                        <span data-i18n="btn_demo">Live Platform</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- ========================================== -->
+            <!-- VIEW 1: LANDING PAGE                       -->
+            <!-- ========================================== -->
+            <section id="view-landing" class="view-section active">
+
+                <!-- Hero Section -->
+                <div class="hero-wrapper">
+                    <div class="hero-container">
+                        <!-- Left Hero Content -->
+                        <div class="hero-content">
+                            <!-- Hero Top Logo Card & Badge Group (Matching Image 1) -->
+                            <div class="hero-header-group">
+                                <div class="hero-brand-card">
+                                    <div class="hero-brand-icon">
+                                        <img src="images/logo.svg" alt="CartWise AI Logo">
+                                    </div>
+                                    <div class="hero-brand-meta">
+                                        <span class="hero-brand-name">CART<span class="brand-accent">WISE</span> <span class="ai-tag">AI</span></span>
+                                        <span class="hero-brand-sub" data-i18n="tagline">E-Commerce AI Suite</span>
+                                    </div>
+                                </div>
+                                <div class="badge-pill">
+                                    <span class="badge-dot"></span>
+                                    <span data-i18n="hero_pill">Integrated Retail AI Automation Suite</span>
+                                </div>
+                            </div>
+
+                            <h1 class="hero-title" data-i18n="hero_title">
+                                Automate Your Store Operations with CartWise AI
+                            </h1>
+                            <p class="hero-subtitle" data-i18n="hero_subtitle">
+                                A unified platform transforming paper supplier invoices into digital inventory, predicting stockouts 14 days early, and providing a bilingual sales concierge to scale revenues.
+                            </p>
+
+                            <div class="hero-actions">
+                                <button class="btn btn-primary btn-lg" onclick="switchView('dashboard')">
+                                    <i data-lucide="rocket"></i>
+                                    <span data-i18n="hero_btn_primary">Explore Live Dashboard</span>
+                                </button>
+                                <button class="btn btn-secondary btn-lg" onclick="scrollToSection('roi-calculator')">
+                                    <i data-lucide="calculator"></i>
+                                    <span data-i18n="hero_btn_secondary">Calculate ROI</span>
+                                </button>
+                            </div>
+
+                            <!-- Hero Stats Strip (Matching Image 1) -->
+                            <div class="hero-stats">
+                                <div class="stat-item">
+                                    <div class="stat-value">99.4%</div>
+                                    <div class="stat-label" data-i18n="stat_ocr_accuracy">OCR Accuracy</div>
+                                </div>
+                                <div class="stat-divider"></div>
+                                <div class="stat-item">
+                                    <div class="stat-value">+24%</div>
+                                    <div class="stat-label" data-i18n="stat_aov_boost">AOV Increase</div>
+                                </div>
+                                <div class="stat-divider"></div>
+                                <div class="stat-item">
+                                    <div class="stat-value">14 Days</div>
+                                    <div class="stat-label" data-i18n="stat_stockout_early">Stockout Warning</div>
+                                </div>
+                                <div class="stat-divider"></div>
+                                <div class="stat-item">
+                                    <div class="stat-value">24/7</div>
+                                    <div class="stat-label" data-i18n="stat_arabic_support">Egyptian Arabic AI</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Hero Visual Floating Cards with Orbit Node (Matching Image 1) -->
+                        <div class="hero-visual">
+                            <div class="visual-glow"></div>
+                            
+                            <!-- Concentric Orbital Graphic -->
+                            <div class="orbit-container">
+                                <div class="orbit-ring orbit-ring-1"></div>
+                                <div class="orbit-ring orbit-ring-2"></div>
+                                <div class="orbit-ring orbit-ring-3"></div>
+                                
+                                <!-- Central CartWise AI Logo Hub -->
+                                <div class="center-hub-card">
+                                    <div class="hub-logo-box">
+                                        <img src="images/logo.svg" alt="CartWise AI Center Logo">
+                                    </div>
+                                    <div class="hub-logo-text">
+                                        <span class="hub-title">CART<span class="brand-accent">WISE</span></span>
+                                        <span class="hub-ai">AI</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Floating Satellite Cards -->
+                            <div class="floating-card card-1" onclick="switchView('ocr')">
+                                <div class="card-icon icon-cyan"><i data-lucide="scan-text"></i></div>
+                                <div class="card-meta">
+                                    <div class="card-title" data-i18n="card_ocr_title">OCR Invoice Intake</div>
+                                    <div class="card-sub" data-i18n="card_ocr_sub">1-Click Inventory Sync</div>
+                                </div>
+                                <div class="card-badge badge-green">99.4%</div>
+                            </div>
+
+                            <div class="floating-card card-2" onclick="switchView('forecasting')">
+                                <div class="card-icon icon-purple"><i data-lucide="trending-up"></i></div>
+                                <div class="card-meta">
+                                    <div class="card-title" data-i18n="card_forecast_title">Demand Forecasting</div>
+                                    <div class="card-sub" data-i18n="card_forecast_sub">LGBM & XGBoost Models</div>
+                                </div>
+                                <div class="card-badge badge-amber">Predictive</div>
+                            </div>
+
+                            <div class="floating-card card-3" onclick="switchView('storefront')">
+                                <div class="card-icon icon-emerald"><i data-lucide="bot"></i></div>
+                                <div class="card-meta">
+                                    <div class="card-title" data-i18n="card_rag_title">Egyptian RAG Sales AI</div>
+                                    <div class="card-sub" data-i18n="card_rag_sub">Instant 24/7 Resolution</div>
+                                </div>
+                                <div class="card-badge badge-emerald">Online</div>
+                            </div>
+
+                            <div class="floating-card card-4" onclick="switchView('storefront')">
+                                <div class="card-icon icon-amber"><i data-lucide="shopping-bag"></i></div>
+                                <div class="card-meta">
+                                    <div class="card-title" data-i18n="card_recsys_title">Smart RecSys Bundles</div>
+                                    <div class="card-sub" data-i18n="card_recsys_sub">Automated Cross-Selling</div>
+                                </div>
+                                <div class="card-badge badge-amber">+24% AOV</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pain Points vs Solutions Comparison Grid -->
+                <div class="section-container">
+                    <div class="section-header">
+                        <span class="section-tag" data-i18n="tag_transformation">Why CartWise AI</span>
+                        <h2 class="section-title" data-i18n="title_pain_points">Transforming Manual Bottlenecks into
+                            Automated Profits</h2>
+                    </div>
+
+                    <div class="comparison-grid">
+                        <div class="comp-card before">
+                            <div class="comp-header">
+                                <i data-lucide="x-circle" class="comp-icon-red"></i>
+                                <h3 data-i18n="comp_before_title">Without CartWise AI</h3>
+                            </div>
+                            <ul class="comp-list">
+                                <li><i data-lucide="minus"></i> <span data-i18n="comp_b1">Hours spent manually typing
+                                        supplier paper invoices into store databases.</span></li>
+                                <li><i data-lucide="minus"></i> <span data-i18n="comp_b2">Unexpected stockouts losing
+                                        customers to competitors.</span></li>
+                                <li><i data-lucide="minus"></i> <span data-i18n="comp_b3">Working capital frozen in
+                                        slow-moving overstocked SKUs.</span></li>
+                                <li><i data-lucide="minus"></i> <span data-i18n="comp_b4">Delayed support replies
+                                        causing abandoned carts.</span></li>
+                            </ul>
+                        </div>
+
+                        <div class="comp-card after">
+                            <div class="comp-header">
+                                <i data-lucide="check-circle-2" class="comp-icon-green"></i>
+                                <h3 data-i18n="comp_after_title">With CartWise Suite</h3>
+                            </div>
+                            <ul class="comp-list">
+                                <li><i data-lucide="check"></i> <span data-i18n="comp_a1">1-Click OCR invoice parsing &
+                                        automatic catalog inventory update in 3 seconds.</span></li>
+                                <li><i data-lucide="check"></i> <span data-i18n="comp_a2">14-Day early predictive alerts
+                                        before stock runs out.</span></li>
+                                <li><i data-lucide="check"></i> <span data-i18n="comp_a3">Optimized re-order quantities
+                                        keeping capital liquid and healthy.</span></li>
+                                <li><i data-lucide="check"></i> <span data-i18n="comp_a4">Instant 24/7 Egyptian Arabic
+                                        support with inline product checkout.</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive Financial ROI Calculator Section -->
+                <div class="section-container" id="roi-calculator">
+                    <div class="calculator-card">
+                        <div class="calc-header">
+                            <span class="section-tag" data-i18n="tag_roi">Financial Calculator</span>
+                            <h2 class="section-title" data-i18n="title_roi">Estimate Your Brand's AI Return On
+                                Investment</h2>
+                            <p data-i18n="sub_roi">Adjust your store metrics below to calculate projected financial
+                                savings and extra revenue.</p>
+                        </div>
+
+                        <div class="calc-grid">
+                            <div class="calc-controls">
+                                <div class="control-group">
+                                    <div class="control-label">
+                                        <span data-i18n="lbl_orders">Monthly Store Orders</span>
+                                        <span class="control-val" id="valOrders">2,500</span>
+                                    </div>
+                                    <input type="range" id="inputOrders" min="500" max="25000" step="500" value="2500"
+                                        oninput="requestROICalc()">
+                                </div>
+
+                                <div class="control-group">
+                                    <div class="control-label">
+                                        <span data-i18n="lbl_skus">Active Catalog SKUs</span>
+                                        <span class="control-val" id="valSKUs">120</span>
+                                    </div>
+                                    <input type="range" id="inputSKUs" min="20" max="2000" step="10" value="120"
+                                        oninput="requestROICalc()">
+                                </div>
+
+                                <div class="control-group">
+                                    <div class="control-label">
+                                        <span data-i18n="lbl_aov">Average Order Value (EGP)</span>
+                                        <span class="control-val" id="valAOV">650</span>
+                                    </div>
+                                    <input type="range" id="inputAOV" min="200" max="5000" step="50" value="650"
+                                        oninput="requestROICalc()">
+                                </div>
+                            </div>
+
+                            <div class="calc-results">
+                                <div class="result-card primary-result">
+                                    <div class="res-title" data-i18n="res_total_title">Projected Monthly Value</div>
+                                    <div class="res-value" id="resTotalVal">265,500 EGP</div>
+                                    <div class="res-sub" data-i18n="res_total_sub">Combined extra revenue & saved costs
+                                        per month</div>
+                                </div>
+
+                                <div class="result-breakdown">
+                                    <div class="b-item">
+                                        <i data-lucide="trending-up" class="b-icon-green"></i>
+                                        <div>
+                                            <div class="b-val" id="resRecBoost">+117,000 EGP</div>
+                                            <div class="b-lbl" data-i18n="lbl_aov_boost">RecSys AOV Revenue Boost (+18%)
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="b-item">
+                                        <i data-lucide="shield-check" class="b-icon-purple"></i>
+                                        <div>
+                                            <div class="b-val" id="resStockout">142,500 EGP</div>
+                                            <div class="b-lbl" data-i18n="lbl_prevented_stockouts">Prevented Stockout
+                                                Missed Sales</div>
+                                        </div>
+                                    </div>
+                                    <div class="b-item">
+                                        <i data-lucide="clock" class="b-icon-cyan"></i>
+                                        <div>
+                                            <div class="b-val" id="resHours">48 Hours</div>
+                                            <div class="b-lbl" data-i18n="lbl_saved_hours">Manual OCR Hours Saved /
+                                                Month</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer — slim brand bar -->
+                <footer class="app-footer app-footer--slim">
+                    <div class="footer-slim">
+                        <div class="brand-text">
+                            <span class="brand-name">CART<span class="brand-accent">WISE</span></span>
+                            <span class="brand-tagline" data-i18n="tagline">E-Commerce AI Suite</span>
+                        </div>
+                    </div>
+                </footer>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 2: EXECUTIVE DASHBOARD               -->
+            <!-- (Fully Aligned with Image 2 & Image 3)      -->
+            <!-- ========================================== -->
+            <section id="view-dashboard" class="view-section">
+                <div class="dashboard-wrapper">
+                    <!-- Hero Banner inside Dashboard (Matching Image 3 DemandForecaster Header) -->
+                    <div class="dash-hero-banner">
+                        <div class="banner-content">
+                            <span class="badge badge-purple" data-i18n="badge_dash_hero">AI-Powered Store Command
+                                Center</span>
+                            <h2 data-i18n="dash_hero_title">Predict Demand. Optimize Inventory. Grow Smarter.</h2>
+                            <p data-i18n="dash_hero_sub">Leverage machine learning models to eliminate stockouts,
+                                automate invoice OCR intake, and maximize customer AOV.</p>
+                        </div>
+                        <div class="banner-actions">
+                            <button class="btn btn-primary" onclick="switchView('forecasting')"
+                                data-i18n="btn_start_forecasting">Start Forecasting</button>
+                            <button class="btn btn-secondary" onclick="switchView('ocr')"
+                                data-i18n="btn_upload_invoice">Upload Invoice</button>
+                        </div>
+                    </div>
+
+                    <!-- Top Executive Metrics Strip (Matching Image 2 Sophian Metrics Row & Image 3) -->
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span class="metric-title" data-i18n="m_ai_rev">AI Revenue Attribution</span>
+                                <div class="metric-icon icon-emerald"><i data-lucide="dollar-sign"></i></div>
+                            </div>
+                            <div class="metric-value">124,500 EGP</div>
+                            <div class="metric-trend trend-up">
+                                <i data-lucide="arrow-up-right"></i>
+                                <span>+24.5% vs last month</span>
+                            </div>
+                        </div>
+
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span class="metric-title" data-i18n="m_saved_hours">Saved Work Hours</span>
+                                <div class="metric-icon icon-cyan"><i data-lucide="clock"></i></div>
+                            </div>
+                            <div class="metric-value">42.5 Hrs</div>
+                            <div class="metric-trend trend-up">
+                                <i data-lucide="arrow-up-right"></i>
+                                <span>14 Invoices Parsed via OCR</span>
+                            </div>
+                        </div>
+
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span class="metric-title" data-i18n="m_stockouts">Stockouts Prevented</span>
+                                <div class="metric-icon icon-amber"><i data-lucide="alert-triangle"></i></div>
+                            </div>
+                            <div class="metric-value">18 SKUs</div>
+                            <div class="metric-trend trend-down">
+                                <i data-lucide="shield-check"></i>
+                                <span>Saved ~65,000 EGP loss</span>
+                            </div>
+                        </div>
+
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span class="metric-title" data-i18n="m_resolution">Chat Resolution Rate</span>
+                                <div class="metric-icon icon-purple"><i data-lucide="message-square"></i></div>
+                            </div>
+                            <div class="metric-value">92.4%</div>
+                            <div class="metric-trend trend-up">
+                                <i data-lucide="arrow-up-right"></i>
+                                <span>Bilingual RAG Assistant</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 1 Analytics Grid (Matching Sophian Image 2 & DemandForecaster Image 3) -->
+                    <div class="dash-grid-row">
+                        <!-- Left: Revenue & Forecast Trajectory (Area Chart) -->
+                        <div class="dash-card card-chart-main">
+                            <div class="card-header">
+                                <div>
+                                    <h3 data-i18n="chart_sales_title">Revenue & AI Demand Forecast Trajectory</h3>
+                                    <p class="card-sub" data-i18n="chart_sales_sub">Historical sales matched with 30-day
+                                        predictive AI demand trajectory</p>
+                                </div>
+                                <span class="badge badge-primary" data-i18n="badge_live">Live AI Model</span>
+                            </div>
+                            <div class="chart-container" id="salesForecastChart"></div>
+                        </div>
+
+                        <!-- Right: Sales Contextual Distribution (Donut Chart - Matching Image 2 Sophian!) -->
+                        <div class="dash-card card-chart-donut">
+                            <div class="card-header">
+                                <div>
+                                    <h3 data-i18n="chart_cat_title">Category Distribution</h3>
+                                    <p class="card-sub" data-i18n="chart_cat_sub">Sales volume split by product category
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="chart-container" id="categoryDonutChart"></div>
+                        </div>
+                    </div>
+
+                    <!-- Row 2 Analytics Grid (Spend by Channel Bar Chart + Alerts Panel - Matching Image 2 & 3!) -->
+                    <div class="dash-grid-row">
+                        <!-- Left: Spend & Sales Revenue by Channel (Bar Chart - Matching Image 2!) -->
+                        <div class="dash-card card-chart-bar">
+                            <div class="card-header">
+                                <div>
+                                    <h3 data-i18n="chart_channel_title">Sales Volume by Channel & RecSys Attribution
+                                    </h3>
+                                    <p class="card-sub" data-i18n="chart_channel_sub">Revenue breakdown across store
+                                        channels</p>
+                                </div>
+                                <button class="btn-text" onclick="exportChannelData(event)" data-i18n="btn_export">Export Data</button>
+                            </div>
+                            <div class="chart-container" id="channelBarChart"></div>
+                        </div>
+
+                        <!-- Right: Stockout Risk Alerts Panel (Matching Image 3 DemandForecaster Alerts!) -->
+                        <div class="dash-card card-alerts-panel">
+                            <div class="card-header">
+                                <h3 data-i18n="alerts_title">Low-Stock Urgent Alerts</h3>
+                                <button class="btn-text" onclick="switchView('forecasting')"
+                                    data-i18n="btn_view_all">View All</button>
+                            </div>
+                            <div class="alerts-list">
+                                <div class="alert-item risk-high">
+                                    <div class="alert-icon"><i data-lucide="alert-circle"></i></div>
+                                    <div class="alert-info">
+                                        <div class="alert-name">H&M Cotton Ankle Socks 3-Pack</div>
+                                        <div class="alert-meta">12 units remaining • Runs out in 3 days</div>
+                                    </div>
+                                    <div class="alert-action">
+                                        <button class="btn btn-sm btn-danger" onclick="switchView('forecasting')"
+                                            data-i18n="btn_reorder">Reorder</button>
+                                    </div>
+                                </div>
+
+                                <div class="alert-item risk-medium">
+                                    <div class="alert-icon"><i data-lucide="alert-triangle"></i></div>
+                                    <div class="alert-info">
+                                        <div class="alert-name">CartWise Puffer Jacket - Navy</div>
+                                        <div class="alert-meta">8 units remaining • Runs out in 6 days</div>
+                                    </div>
+                                    <div class="alert-action">
+                                        <button class="btn btn-sm btn-warning" onclick="switchView('forecasting')"
+                                            data-i18n="btn_reorder">Reorder</button>
+                                    </div>
+                                </div>
+
+                                <div class="alert-item risk-low">
+                                    <div class="alert-icon"><i data-lucide="check-circle"></i></div>
+                                    <div class="alert-info">
+                                        <div class="alert-name">Oversized Hoodie - Vintage Grey</div>
+                                        <div class="alert-meta">45 units remaining • Healthy stock</div>
+                                    </div>
+                                    <div class="alert-action">
+                                        <span class="badge badge-green" data-i18n="badge_healthy">Optimal</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 3: OCR INVOICE INTAKE                -->
+            <!-- ========================================== -->
+            <section id="view-ocr" class="view-section">
+                <div class="ocr-wrapper">
+                    <div class="ocr-hero-banner">
+                        <div class="banner-text">
+                            <h2 data-i18n="ocr_hero_title">Extract Text & Items with AI-Powered OCR</h2>
+                            <p data-i18n="ocr_hero_sub">Upload paper invoices, receipts, or PDFs to extract items,
+                                prices, and update store inventory in 3 seconds.</p>
+                        </div>
+                    </div>
+
+                    <!-- Prominent Drag & Drop Upload Zone (Matching Image 4) -->
+                    <div class="ocr-dropzone-container">
+                        <div class="dropzone" id="ocrDropzone" onclick="triggerFileSelect()">
+                            <input type="file" id="ocrFileInput" accept="image/*,.pdf" style="display: none;"
+                                onchange="handleFileSelected(event)">
+                            <div class="dropzone-content">
+                                <div class="dropzone-icon">
+                                    <i data-lucide="upload-cloud"></i>
+                                </div>
+                                <h3 data-i18n="dropzone_title">Drop supplier invoice files here</h3>
+                                <p data-i18n="dropzone_sub">or click to select from your device (PNG, JPG, PDF
+                                    supported)</p>
+                                <button class="btn btn-primary" onclick="event.stopPropagation(); triggerFileSelect();"
+                                    data-i18n="btn_select_file">Select File</button>
+                                <button class="btn btn-secondary"
+                                    onclick="event.stopPropagation(); loadSampleOCRInvoice();" style="margin-top: 8px;">
+                                    <i data-lucide="sparkles"></i>
+                                    <span data-i18n="btn_sample_invoice">Try Sample Invoice</span>
+                                </button>
+                            </div>
+
+                            <!-- Scan Animation Overlay -->
+                            <div class="scan-overlay" id="scanOverlay" style="display: none;">
+                                <div class="scan-line"></div>
+                                <div class="scan-text">
+                                    <i data-lucide="loader-2" class="spin"></i>
+                                    <span data-i18n="scanning_text">AI Scanning & Extracting Invoice Data...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3 Feature Pillars Below Upload Zone (Matching Image 4) -->
+                        <div class="ocr-features-row">
+                            <div class="ocr-feat-item">
+                                <i data-lucide="zap" class="feat-icon-cyan"></i>
+                                <div>
+                                    <h4 data-i18n="feat_fast_title">Lightning Fast</h4>
+                                    <p data-i18n="feat_fast_desc">Processes multi-line receipts in under 3 seconds.</p>
+                                </div>
+                            </div>
+                            <div class="ocr-feat-item">
+                                <i data-lucide="target" class="feat-icon-purple"></i>
+                                <div>
+                                    <h4 data-i18n="feat_acc_title">99.4% Precision</h4>
+                                    <p data-i18n="feat_acc_desc">Deep vision OCR with automatic confidence scoring.</p>
+                                </div>
+                            </div>
+                            <div class="ocr-feat-item">
+                                <i data-lucide="shield-check" class="feat-icon-green"></i>
+                                <div>
+                                    <h4 data-i18n="feat_sec_title">Secure & Private</h4>
+                                    <p data-i18n="feat_sec_desc">Encrypted intake directly into your catalog database.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Verification Table (Extracted Data) -->
+                    <div class="ocr-results-card" id="ocrResultsCard" style="display: none;">
+                        <div class="card-header">
+                            <div>
+                                <h3 data-i18n="ocr_res_title">Extracted Invoice Items & Verification</h3>
+                                <p class="card-sub" id="invoiceMeta">Supplier: Al-Nassr Textile Co. • Invoice
+                                    #INV-2026-8941</p>
+                            </div>
+                            <button class="btn btn-emerald" onclick="confirmOCRToInventory()">
+                                <i data-lucide="check-circle-2"></i>
+                                <span data-i18n="btn_sync_inventory">1-Click Sync to Inventory</span>
+                            </button>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="th_item_name">Extracted Item Name</th>
+                                        <th data-i18n="th_qty">Quantity</th>
+                                        <th data-i18n="th_cost">Unit Cost (EGP)</th>
+                                        <th data-i18n="th_retail">Suggested Retail</th>
+                                        <th data-i18n="th_total">Total (EGP)</th>
+                                        <th data-i18n="th_confidence">AI Confidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ocrTableBody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 4: DEMAND FORECASTING                -->
+            <!-- ========================================== -->
+            <section id="view-forecasting" class="view-section">
+                <div class="forecasting-wrapper">
+                    <!-- Forecast Hero Banner (Matching Image 3) -->
+                    <div class="forecast-hero-card">
+                        <div class="hero-card-content">
+                            <span class="badge badge-purple" data-i18n="badge_forecaster">AI-Powered Demand
+                                Forecasting</span>
+                            <h2 data-i18n="forecaster_title">Predict Demand. Optimize Inventory. Grow Smarter.</h2>
+                            <p data-i18n="forecaster_sub">Leverage LightGBM & XGBoost time-series models to forecast
+                                SKU-level demand, eliminate stockouts, and minimize overstock.</p>
+                        </div>
+                    </div>
+
+                    <!-- Forecasting Metrics Strip (Matching Image 3) -->
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <span class="metric-title" data-i18n="fm_demand">Predicted 30-Day Demand</span>
+                            <div class="metric-value" id="fmValDemand">12,480 Units</div>
+                            <div class="metric-trend trend-up" id="fmSubDemand"><i data-lucide="arrow-up-right"></i> +18.7% projected</div>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-title" data-i18n="fm_stock">Current Total Inventory</span>
+                            <div class="metric-value" id="fmValStock">10,320 Units</div>
+                            <div class="metric-trend trend-up" id="fmSubStock"><i data-lucide="check"></i> 82% Coverage</div>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-title" data-i18n="fm_risk">Stockout Risk Level</span>
+                            <div class="metric-value text-amber" id="fmValRisk">8.5% Low Risk</div>
+                            <div class="metric-trend trend-down" id="fmSubRisk"><i data-lucide="shield-check"></i> 18 SKUs Monitored</div>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-title" data-i18n="fm_revenue">Expected Monthly Sales</span>
+                            <div class="metric-value" id="fmValRevenue">156,000 EGP</div>
+                            <div class="metric-trend trend-up" id="fmSubRevenue"><i data-lucide="arrow-up-right"></i> +22.1% forecasted</div>
+                        </div>
+                    </div>
+
+                    <!-- Main Forecasting Grid (Matching Image 3) -->
+                    <div class="forecasting-main-grid">
+                        <!-- Left: Demand Trend Chart -->
+                        <div class="dash-card card-chart-forecast">
+                            <div class="card-header">
+                                <div>
+                                    <h3 id="forecastChartTitle" data-i18n="forecast_chart_title">Demand Trend & 30-Day Predictive Trajectory</h3>
+                                    <p class="card-sub" id="forecastChartSub" data-i18n="forecast_chart_sub">Actual historical sales vs Model predicted demand with confidence bounds</p>
+                                </div>
+                            </div>
+                            <div class="chart-container" id="demandTrendChart"></div>
+                        </div>
+
+                        <!-- Right: Forecasting Control & Insights Panel (Matching Image 3) -->
+                        <div class="dash-card card-control-panel">
+                            <div class="card-header">
+                                <h3 data-i18n="gen_forecast_title">Generate Forecast Model</h3>
+                            </div>
+                            <form class="forecast-form" onsubmit="event.preventDefault(); runForecastModel();">
+                                <div class="form-group">
+                                    <label data-i18n="lbl_select_sku">Select Product SKU</label>
+                                    <select id="skuSelect" class="form-control" onchange="runForecastModel();">
+                                        <option value="108775015">Strap top (Black)</option>
+                                        <option value="212629040">Alcazar strap dress (Dark Red)</option>
+                                        <option value="237222001">Helsinki (Black)</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label data-i18n="lbl_forecast_period">Forecast Horizon</label>
+                                    <select id="horizonSelect" class="form-control" onchange="runForecastModel();">
+                                        <option value="30">Next 30 Days</option>
+                                        <option value="60">Next 60 Days</option>
+                                        <option value="90">Next 90 Days</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label data-i18n="lbl_model_choice">Select Model Engine</label>
+                                    <select id="modelEngineSelect" class="form-control" onchange="runForecastModel();">
+                                        <option value="lgbm">LightGBM Regressor (Recommended)</option>
+                                        <option value="xgboost">XGBoost Time-Series</option>
+                                    </select>
+                                </div>
+
+                                <button type="submit" id="btnRunForecast" class="btn btn-purple btn-block">
+                                    <i data-lucide="cpu"></i>
+                                    <span data-i18n="btn_run_forecast">Run Prediction Model</span>
+                                </button>
+                            </form>
+
+                            <!-- Live Result Box -->
+                            <div id="forecastResultBox" class="forecast-result-box" style="display:none; margin-top:1.25rem; padding:1.1rem; border-radius:12px; background:var(--bg-input, rgba(181,242,219,0.05)); border:1px solid var(--border-color, rgba(181,242,219,0.25)); transition: all 0.3s ease;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                                    <span style="font-weight:700; font-size:0.95rem; color:var(--primary, #B5F2DB);" id="forecastResultSkuName">SKU Analysis</span>
+                                    <span class="badge badge-green" id="forecastResultBadge">Active</span>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.85rem;">
+                                    <div>
+                                        <span style="opacity:0.75; font-size:0.75rem; display:block;">Predicted Demand</span>
+                                        <strong id="forecastResultDemand" style="font-size:1.15rem; color:var(--text-heading, #B5F2DB);">—</strong>
+                                    </div>
+                                    <div>
+                                        <span style="opacity:0.75; font-size:0.75rem; display:block;">Probability of Sale</span>
+                                        <strong id="forecastResultProb" style="font-size:1.15rem; color:var(--chart-forecast, #FFC933);">—</strong>
+                                    </div>
+                                </div>
+                                <div id="forecastResultNote" style="margin-top:0.75rem; padding-top:0.6rem; border-top:1px dashed rgba(181,242,219,0.15); font-size:0.8rem; opacity:0.9; display:flex; align-items:center; gap:0.4rem;">
+                                    <i data-lucide="info" style="width:14px; height:14px; flex-shrink:0;"></i>
+                                    <span id="forecastResultNoteText">Model inference completed.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 5: STORE CATALOG (chat lives in the floating widget) -->
+            <!-- ========================================== -->
+            <section id="view-storefront" class="view-section">
+                <div class="storefront-wrapper">
+                    <div class="storefront-grid storefront-grid--full">
+                        <!-- Interactive Product Catalog & Recommendations -->
+                        <div class="catalog-container">
+                            <div class="catalog-header">
+                                <h2 data-i18n="catalog_title">Store Catalog & Smart Cross-Sell Recommendations</h2>
+                                <p class="card-sub" data-i18n="catalog_sub">Explore products with dynamic AI
+                                    complementary bundling ("Complete the Look").</p>
+                            </div>
+
+                            <div class="products-grid" id="productsGrid">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- GLOBAL FLOATING CHATBOT WIDGET (all pages) -->
+    <!-- ========================================== -->
+    <div class="chat-fab-zone" id="chatFabZone">
+        <div class="chat-popup" id="chatPopup" aria-hidden="true">
+            <div class="chat-card chat-card--floating">
+                <div class="chat-card-header">
+                    <div class="bot-info">
+                        <div class="bot-avatar">✨</div>
+                        <div>
+                            <h3 data-i18n="chat_bot_name">CartWise Egyptian Sales Assistant</h3>
+                            <span class="bot-status" data-i18n="chat_bot_status">Online • Bilingual RAG
+                                Engine</span>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="btn-icon-small" onclick="resetChatHistory()" title="Reset Chat">
+                            <i data-lucide="rotate-ccw"></i>
+                        </button>
+                        <button class="btn-icon-small chat-close-btn" onclick="toggleChatWidget(false)" title="Close">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Chips Bar -->
+                <div class="chips-bar">
+                    <button class="chip" data-i18n="chip1_label" onclick="sendChip('chip1_msg')">Winter
+                        Jacket</button>
+                    <button class="chip" data-i18n="chip2_label" onclick="sendChip('chip2_msg')">Occasion
+                        Dress</button>
+                    <button class="chip" data-i18n="chip3_label" onclick="sendChip('chip3_msg')">Cotton
+                        Socks</button>
+                </div>
+
+                <!-- Chat Messages Stream -->
+                <div class="chat-stream" id="chatStream">
+                    <div class="msg-bubble bot-msg">
+                        <p data-i18n="chat_welcome">Welcome! 👋 I am your Egyptian Arabic sales
+                            assistant. Ask me about product sizes, pricing, delivery, or branch
+                            locations!</p>
+                    </div>
+                </div>
+
+                <!-- Input Form -->
+                <form class="chat-input-form" onsubmit="event.preventDefault(); handleUserSubmit();">
+                    <input type="text" id="chatInput" placeholder="Type your message here..."
+                        data-i18n-ph="chat_placeholder" autocomplete="off" required>
+                    <button type="submit" class="btn btn-primary btn-icon">
+                        <i data-lucide="send"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <button class="chat-fab" id="chatFab" onclick="toggleChatWidget()" aria-label="Open chat">
+            <span class="chat-fab-ping" aria-hidden="true"></span>
+            <span class="chat-fab-core" aria-hidden="true">
+                <i data-lucide="message-circle" class="chat-fab-icon chat-fab-icon--open"></i>
+                <i data-lucide="x" class="chat-fab-icon chat-fab-icon--close"></i>
+            </span>
+        </button>
+    </div>
+
+    <!-- Custom JS (deferred — no render blocking) -->
+    <script src="config.js?v=1.1.0" defer></script>
+    <script src="app.js?v=6.1.0" defer></script>
+</body>
+
+</html>

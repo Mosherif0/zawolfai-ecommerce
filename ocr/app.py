@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -25,6 +26,14 @@ BASE = Path(__file__).resolve().parent
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "zawolf_ocr_uploads"
 
 app = FastAPI(title="OCR Receipt Pipeline", version="2.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class Item(BaseModel):

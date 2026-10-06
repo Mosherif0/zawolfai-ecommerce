@@ -55,8 +55,7 @@ WORKSPACE = Path(os.getenv("ZAWOLF_WORKSPACE", r"D:\zawolf-project"))
 RECOMMENDATION_DIR = WORKSPACE / "recommendation_system" / "zawolfai-ecommerce-Re"
 FORECASTING_DIR = WORKSPACE / "demand_forecasting"
 OCR_DIR = WORKSPACE / "ocr"
-CHATBOT_DIR = Path(os.getenv(
-    "CHATBOT_DIR", r"D:\My-Projects\conversational-ai-mvp"))
+CHATBOT_DIR = Path(os.getenv("CHATBOT_DIR", str(WORKSPACE / "conversational-ai-mvp")))
 
 # --------------------------------------------------------------------------
 # data

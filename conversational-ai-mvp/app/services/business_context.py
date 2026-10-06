@@ -170,9 +170,20 @@ def collect_business_context(message: str) -> Tuple[str, Dict[str, Any]]:
             if result.status == "empty" or not result.data:
                 blocks.append("[STOCK] No matching item is currently in the warehouse.")
             elif intent.product_terms:
+                # Name the requested category in the header. The catalogue and
+                # the warehouse do not share vocabulary - the warehouse stores
+                # receipt text ("White Shirt") while the catalogue uses its own
+                # category labels - so without an explicit link the model reads
+                # a stock line, looks for a matching catalogue entry, finds none,
+                # and concludes the item does not exist.
+                category = " / ".join(intent.product_terms)
                 text = _format_stock(result.data)
                 if text:
-                    blocks.append(f"[STOCK] Current warehouse records:\n{text}")
+                    blocks.append(
+                        f"[STOCK] Items matching the request ({category}) - these ARE "
+                        f"in stock right now, even if their wording differs from the "
+                        f"product list:\n{text}"
+                    )
             else:
                 stats = result.data or {}
                 blocks.append(

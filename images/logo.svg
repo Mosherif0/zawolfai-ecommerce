@@ -1,0 +1,75 @@
+<svg viewBox="0 0 280 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Mint Green Gradient for Brain Network (Template: Secondary #B5F2DB) -->
+    <linearGradient id="cwCyanGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#B5F2DB" />
+      <stop offset="50%" stop-color="#E4EEF0" />
+      <stop offset="100%" stop-color="#B5F2DB" />
+    </linearGradient>
+
+    <!-- Pale Blue Gray → White Gradient for Cart Frame (Template: Neutral) -->
+    <linearGradient id="cwNavyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E4EEF0" />
+      <stop offset="100%" stop-color="#FFFFFF" />
+    </linearGradient>
+
+    <!-- Soft Glow Filter -->
+    <filter id="cyanGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- CARTWISE BRAND ICON MARK -->
+  <g class="cartwise-mark">
+    <!-- 1. Brain Network Synapses (Background Intellect) -->
+    <!-- Brain Outer Curvature -->
+    <path d="M 85 92 C 72 74 90 48 116 52 C 128 36 156 38 170 54 C 188 50 200 68 190 90 C 200 106 188 126 168 128" 
+          stroke="url(#cwCyanGradient)" stroke-width="4.5" stroke-linecap="round" fill="none" opacity="0.9" />
+
+    <!-- Synapse Interconnecting Network Lines -->
+    <g stroke="url(#cwCyanGradient)" stroke-width="2.5" stroke-linecap="round" opacity="0.85">
+      <line x1="116" y1="52" x2="138" y2="76" />
+      <line x1="170" y1="54" x2="138" y2="76" />
+      <line x1="138" y1="76" x2="110" y2="102" />
+      <line x1="138" y1="76" x2="164" y2="98" />
+      <line x1="164" y1="98" x2="190" y2="90" />
+      <line x1="110" y1="102" x2="85" y2="92" />
+      <line x1="138" y1="76" x2="138" y2="115" />
+    </g>
+
+    <!-- Synapse Nodes (Mint Green + Warm Yellow hub) -->
+    <circle cx="116" cy="52" r="4.5" fill="#B5F2DB" filter="url(#cyanGlow)" />
+    <circle cx="170" cy="54" r="4.5" fill="#B5F2DB" filter="url(#cyanGlow)" />
+    <circle cx="138" cy="76" r="6" fill="#FFC933" filter="url(#cyanGlow)" />
+    <circle cx="110" cy="102" r="4" fill="#B5F2DB" />
+    <circle cx="164" cy="98" r="4.5" fill="#B5F2DB" />
+    <circle cx="85" cy="92" r="4" fill="#042F34" stroke="#FFC933" stroke-width="2" />
+    <circle cx="190" cy="90" r="4" fill="#042F34" stroke="#FFC933" stroke-width="2" />
+
+    <!-- 2. Shopping Cart Outer Frame (Pale Blue Gray) -->
+    <path d="M 36 68 H 60 L 80 148 H 168 L 188 94 H 68" 
+          stroke="url(#cwNavyGradient)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+    <!-- Cart Wheel Assemblies -->
+    <!-- Left Wheel -->
+    <circle cx="92" cy="176" r="12" fill="#042F34" stroke="url(#cwCyanGradient)" stroke-width="3" />
+    <circle cx="92" cy="176" r="4.5" fill="#FFC933" />
+
+    <!-- Right Wheel -->
+    <circle cx="156" cy="176" r="12" fill="#042F34" stroke="url(#cwCyanGradient)" stroke-width="3" />
+    <circle cx="156" cy="176" r="4.5" fill="#FFC933" />
+
+    <!-- 3. Dynamic Upward Growth Arrow (Accent Warm Yellow #FFC933) -->
+    <!-- Arrow Main Stem -->
+    <path d="M 76 138 L 124 90 L 198 34" 
+          stroke="#FFC933" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#cyanGlow)" />
+
+    <!-- Arrow Head Peak -->
+    <path d="M 166 34 H 198 V 66" 
+          stroke="#FFC933" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#cyanGlow)" />
+  </g>
+</svg>
