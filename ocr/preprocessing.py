@@ -51,10 +51,20 @@ def preprocess(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1. Upscale - the single biggest win for small receipt text.
-    resized = cv2.resize(
-        image, None, fx=upscale, fy=upscale, interpolation=cv2.INTER_CUBIC
-    )
+    h, w = image.shape[:2]
+    if w >= 1000 or h >= 1000:
+        factor = 1.0
+    elif w >= 500 or h >= 500:
+        factor = 1.2
+    else:
+        factor = 1.5
+
+    if factor != 1.0:
+        resized = cv2.resize(
+            image, None, fx=factor, fy=factor, interpolation=cv2.INTER_AREA if factor < 1.0 else cv2.INTER_LINEAR
+        )
+    else:
+        resized = image.copy()
 
     # 2. Grayscale.
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)

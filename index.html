@@ -22,7 +22,7 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts" defer></script>
 
     <!-- Custom CSS + JS (single version — bump to bust cache) -->
-    <link rel="stylesheet" href="style.css?v=6.0.0">
+    <link rel="stylesheet" href="style.css?v=6.4.0">
     <script>
     // Boot the app only after ALL deferred scripts (lucide + apexcharts + app) finished.
     window.addEventListener('load', function () {
@@ -418,7 +418,7 @@
                     </div>
 
                     <!-- Top Executive Metrics Strip (Matching Image 2 Sophian Metrics Row & Image 3) -->
-                    <div class="metrics-grid">
+                    <div class="metrics-grid metrics-grid-3">
                         <div class="metric-card">
                             <div class="metric-header">
                                 <span class="metric-title" data-i18n="m_ai_rev">AI Revenue Attribution</span>
@@ -454,18 +454,6 @@
                                 <span>Saved ~65,000 EGP loss</span>
                             </div>
                         </div>
-
-                        <div class="metric-card">
-                            <div class="metric-header">
-                                <span class="metric-title" data-i18n="m_resolution">Chat Resolution Rate</span>
-                                <div class="metric-icon icon-purple"><i data-lucide="message-square"></i></div>
-                            </div>
-                            <div class="metric-value">92.4%</div>
-                            <div class="metric-trend trend-up">
-                                <i data-lucide="arrow-up-right"></i>
-                                <span>Bilingual RAG Assistant</span>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Row 1 Analytics Grid (Matching Sophian Image 2 & DemandForecaster Image 3) -->
@@ -478,7 +466,7 @@
                                     <p class="card-sub" data-i18n="chart_sales_sub">Historical sales matched with 30-day
                                         predictive AI demand trajectory</p>
                                 </div>
-                                <span class="badge badge-primary" data-i18n="badge_live">Live AI Model</span>
+                                <span class="badge badge-primary" id="salesLiveBadge" data-i18n="badge_live">Live AI Model</span>
                             </div>
                             <div class="chart-container" id="salesForecastChart"></div>
                         </div>
@@ -519,7 +507,9 @@
                                 <button class="btn-text" onclick="switchView('forecasting')"
                                     data-i18n="btn_view_all">View All</button>
                             </div>
-                            <div class="alerts-list">
+                            <div class="alerts-list" id="alertsList">
+                                <!-- Static baseline (data that always exists) — replaced
+                                     by loadStockAlerts() with live/bundled rows on boot. -->
                                 <div class="alert-item risk-high">
                                     <div class="alert-icon"><i data-lucide="alert-circle"></i></div>
                                     <div class="alert-info">
@@ -552,6 +542,8 @@
                                     </div>
                                     <div class="alert-action">
                                         <span class="badge badge-green" data-i18n="badge_healthy">Optimal</span>
+                                        <button class="btn btn-sm btn-warning" onclick="reorderAlert(2)"
+                                            data-i18n="btn_reorder">Reorder</button>
                                     </div>
                                 </div>
                             </div>
@@ -601,6 +593,10 @@
                                     <i data-lucide="loader-2" class="spin"></i>
                                     <span data-i18n="scanning_text">AI Scanning & Extracting Invoice Data...</span>
                                 </div>
+                                <div class="scan-progress">
+                                    <div class="scan-progress-bar" id="scanProgressBar"></div>
+                                </div>
+                                <div class="scan-percent" id="scanPercent">0%</div>
                             </div>
                         </div>
 
@@ -874,7 +870,7 @@
 
     <!-- Custom JS (deferred — no render blocking) -->
     <script src="config.js?v=1.1.0" defer></script>
-    <script src="app.js?v=6.1.0" defer></script>
+    <script src="app.js?v=6.6.0" defer></script>
 </body>
 
 </html>

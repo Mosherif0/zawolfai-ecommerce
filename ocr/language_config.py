@@ -43,12 +43,10 @@ def is_rtl(lang: str | None = None) -> bool:
 
 def ocr_languages(lang: str | None = None) -> List[str]:
     """
-    Model languages for EasyOCR.
-
-    Arabic receipts very often carry Latin brand names, so "ar" is paired
-    with "en" — EasyOCR runs both and the parser merges the results.
+    Model languages for EasyOCR. Always load both Arabic and English so any
+    receipt (Arabic, English, or Bilingual) is recognized seamlessly.
     """
-    return ["ar", "en"] if normalize(lang or DEFAULT_LANG) == "ar" else ["en"]
+    return ["ar", "en"]
 
 
 # --------------------------------------------------------------------------
@@ -119,16 +117,16 @@ SUMMARY_KEYWORDS: Dict[str, Tuple[str, ...]] = {
         "thank you", "www", "http", "customer", "copy", "survey",
     ),
     "ar": (
-        "المجموع", "المجموع الفرعي", "اجمالي", "اجمالي الفاتورة",
+        "المجموع", "المجموع الفرعي", "اجمالي", "اجمالي الفاتورة", "الإجمالي", "الصافي",
         "الضريبة", "ضريبة القيمة المضافة", "القيمة المضافة",
-        "المدفوع", "دفع", "نقدا", "نقد", "الباقي", "التغيير",
+        "المدفوع", "دفع", "نقدا", "نقد", "الباقي", "التغيير", "المتبقي",
         "فيزا", "ماستركارد", "بطاقة", "ائتمان",
-        "موافق", "معتمد", "المعاملة", "رقم الفاتورة", "فاتورة",
-        "رقم ايصال", "الفرع", "الكاشير", "الموظف",
+        "موافق", "معتمد", "المعاملة", "رقم الفاتورة", "فاتورة", "فاتورة بيع",
+        "رقم ايصال", "الفرع", "الكاشير", "الموظف", "رقم العملية", "رقم الوردية",
         "الاسترجاع", "استبدال", "سياسة", "ضمان",
         "شكرا", "شكرا لحسن زيارتكم", "اتصل", "استفسار",
         "خصم", "كوبون", "شحن", "توصيل", "النقاط",
-        "عدد الاغراض", "الاغراض",
+        "عدد الاغراض", "الاغراض", "عدد الاصناف", "عدد الاصناف المباعة",
     ),
 }
 
@@ -144,7 +142,7 @@ METADATA_PATTERNS: Dict[str, Tuple[str, ...]] = {
     "ar": (
         r"التاريخ", r"الوقت", r"الفرع", r"الكاشير", r"المتجر",
         r"الفاتورة", r"ايصال", r"رقم", r"شكرا", r"اتصل",
-        r"تليفون", r"رقم الهاتف", r"الرمز",
+        r"تليفون", r"رقم الهاتف", r"الرمز", r"رقم العملية", r"رقم الوردية", r"العميل",
     ),
 }
 
@@ -152,26 +150,28 @@ METADATA_PATTERNS: Dict[str, Tuple[str, ...]] = {
 RECEIPT_SIGNALS: Dict[str, Tuple[Tuple[str, float], ...]] = {
     # (substring, weight)
     "en": (
-        ("subtotal", 3.0), ("sub total", 3.0), ("total due", 3.0),
-        ("grand total", 3.0), ("amount due", 3.0), ("balance due", 2.5),
-        ("vat", 3.0), ("tax", 2.0), ("sales tax", 3.0),
-        ("payment", 2.0), ("cash", 1.0), ("change", 1.5), ("tendered", 2.0),
-        ("visa", 2.0), ("mastercard", 2.0), ("amex", 2.0),
-        ("approved", 2.0), ("authorization", 2.0), ("auth code", 2.5),
-        ("receipt no", 2.5), ("invoice no", 2.5), ("invoice", 1.5),
-        ("cashier", 2.5), ("terminal", 2.0), ("register", 1.0),
+        ("subtotal", 3.0), ("sub total", 3.0), ("total due", 3.0), ("total", 2.5),
+        ("grand total", 3.0), ("amount due", 3.0), ("balance due", 2.5), ("amount", 2.0),
+        ("vat", 3.0), ("tax", 2.0), ("sales tax", 3.0), ("egp", 2.5), ("le", 2.0), ("l.e.", 2.0),
+        ("payment", 2.0), ("cash", 1.5), ("change", 1.5), ("tendered", 2.0), ("price", 2.0),
+        ("visa", 2.0), ("mastercard", 2.0), ("amex", 2.0), ("qty", 2.0), ("quantity", 2.0),
+        ("approved", 2.0), ("authorization", 2.0), ("auth code", 2.5), ("item", 1.5),
+        ("receipt no", 2.5), ("invoice no", 2.5), ("invoice", 2.0), ("receipt", 2.0),
+        ("cashier", 2.5), ("terminal", 2.0), ("register", 1.0), ("bill", 2.0),
         ("thank you", 1.5), ("www.", 1.0), ("http", 1.0),
-        ("item count", 2.0), ("order number", 2.0),
+        ("item count", 2.0), ("order number", 2.0), ("order", 1.5), ("unit", 1.5),
     ),
     "ar": (
-        ("المجموع الفرعي", 3.0), ("المجموع", 2.0), ("اجمالي", 2.0),
-        ("الضريبة", 3.0), ("القيمة المضافة", 3.0),
-        ("المدفوع", 2.0), ("الباقي", 2.0), ("التغيير", 1.5),
-        ("فيزا", 2.0), ("ماستركارد", 2.0), ("بطاقة", 1.5),
-        ("موافق", 2.0), ("معتمد", 1.5),
-        ("رقم الفاتورة", 2.5), ("فاتورة", 1.5), ("ايصال", 1.5),
-        ("الكاشير", 2.5), ("الفرع", 2.0),
-        ("شكرا", 1.5), ("عدد الاغراض", 2.0),
+        ("المجموع الفرعي", 3.0), ("المجموع", 2.5), ("اجمالي", 2.5), ("إجمالي", 2.5),
+        ("الضريبة", 3.0), ("القيمة المضافة", 3.0), ("ج.م", 3.0), ("جنيه", 2.5),
+        ("المدفوع", 2.0), ("الباقي", 2.0), ("التغيير", 1.5), ("سعر", 2.0), ("السعر", 2.0),
+        ("فيزا", 2.0), ("ماستركارد", 2.0), ("بطاقة", 1.5), ("الكمية", 2.0), ("كمية", 2.0),
+        ("موافق", 2.0), ("معتمد", 1.5), ("صنف", 2.0), ("منتج", 1.5), ("مشتريات", 2.0),
+        ("رقم الفاتورة", 2.5), ("فاتورة", 2.0), ("ايصال", 2.0), ("إيصال", 2.0), ("فاتورة بيع", 3.0),
+        ("الكاشير", 2.5), ("الفرع", 2.0), ("تاريخ", 1.5), ("مبلغ", 2.0), ("المبلغ", 2.0),
+        ("شكرا", 1.5), ("عدد الاغراض", 2.0), ("حساب", 1.5), ("طلب", 1.5), ("كاش", 2.0),
+        ("الصافي", 3.0), ("المتبقي", 2.0), ("رقم العملية", 2.5), ("رقم الوردية", 2.0), ("الوحدة", 1.5),
+        ("الاصناف", 2.0), ("المباعة", 1.5), ("تيك اواي", 1.5), ("unit", 1.5),
     ),
 }
 
@@ -190,21 +190,12 @@ WEAK_SIGNALS = frozenset({
 
 def summary_keywords(lang: str | None = None) -> Tuple[str, ...]:
     """Summary labels for a language, Arabic always additive."""
-    base = list(SUMMARY_KEYWORDS["en"])
-    if normalize(lang or DEFAULT_LANG) == "ar":
-        base += list(SUMMARY_KEYWORDS["ar"])
-    return tuple(base)
+    return tuple(set(SUMMARY_KEYWORDS["en"] + SUMMARY_KEYWORDS["ar"]))
 
 
 def metadata_patterns(lang: str | None = None) -> Tuple[str, ...]:
-    base = list(METADATA_PATTERNS["en"])
-    if normalize(lang or DEFAULT_LANG) == "ar":
-        base += list(METADATA_PATTERNS["ar"])
-    return tuple(base)
+    return tuple(set(METADATA_PATTERNS["en"] + METADATA_PATTERNS["ar"]))
 
 
 def receipt_signals(lang: str | None = None) -> Tuple[Tuple[str, float], ...]:
-    base = list(RECEIPT_SIGNALS["en"])
-    if normalize(lang or DEFAULT_LANG) == "ar":
-        base += list(RECEIPT_SIGNALS["ar"])
-    return tuple(base)
+    return tuple(RECEIPT_SIGNALS["en"] + RECEIPT_SIGNALS["ar"])

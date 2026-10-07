@@ -104,6 +104,13 @@ def apply_schema(conn, backend: str = "sqlite") -> None:
 
     if backend == "sqlite":
         conn.executescript(ddl)
+        try:
+            cur = conn.execute("PRAGMA table_info(receipt_items)")
+            cols = [r[1] for r in cur.fetchall()]
+            if cols and "receipt_id" not in cols:
+                conn.execute("ALTER TABLE receipt_items ADD COLUMN receipt_id INTEGER NOT NULL DEFAULT 1 REFERENCES receipts(id) ON DELETE CASCADE")
+        except Exception:
+            pass
     else:
         with conn.cursor() as cur:
             cur.execute(ddl)

@@ -51,7 +51,7 @@ for _service in ("ocr", "demand_forecasting",
 # workspace layout
 # --------------------------------------------------------------------------
 
-WORKSPACE = Path(os.getenv("ZAWOLF_WORKSPACE", r"D:\zawolf-project"))
+WORKSPACE = Path(os.getenv("ZAWOLF_WORKSPACE", str(_HERE.parent)))
 RECOMMENDATION_DIR = WORKSPACE / "recommendation_system" / "zawolfai-ecommerce-Re"
 FORECASTING_DIR = WORKSPACE / "demand_forecasting"
 OCR_DIR = WORKSPACE / "ocr"

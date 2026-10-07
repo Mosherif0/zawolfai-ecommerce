@@ -437,14 +437,25 @@ class GeminiService:
 
         try:
             response_text = self._generate_reply(contents, config)
-        except GeminiUnavailableError:
-            # Never fabricate a reply: an honest "try again" beats a confident
-            # lie about a product or an order that does not exist.
-            response_text = (
-                "حصلت مشكلة بسيطة في الاتصال دلوقتي، فمقدرتش أرد عليك. "
-                "جرّب تبعت الرسالة تاني بعد ثانية واحدة."
-            )
-            retrieved = []
+        except GeminiUnavailableError as e:
+            if retrieved:
+                lines = ["إليك أهم المنتجات المتاحة من الكتالوج بناءً على طلبك:\n"]
+                for p in retrieved:
+                    price_str = f" - السعر: {p.egp_price} جنيه" if p.egp_price else ""
+                    lines.append(f"• **{p.name}**{price_str}")
+                if not self.api_key:
+                    lines.append("\n💡 *(ملاحظة: للحصول على إجابات تفاعلية بالذكاء الاصطناعي الكامل، يرجى إضافة GEMINI_API_KEY في ملف .env)*")
+                response_text = "\n".join(lines)
+            else:
+                if not self.api_key:
+                    response_text = (
+                        "لم يتم العثور على منتجات مطابقة في الكتالوج، كما أن مفتاح GEMINI_API_KEY غير مضاف في ملف .env للتفاعل الذكي. "
+                        "يمكنك إضافة المفتاح من https://aistudio.google.com/apikey"
+                    )
+                else:
+                    response_text = (
+                        "حصلت مشكلة بسيطة في الاتصال بخدمة الذكاء الاصطناعي الآن، ولكن يمكنك محاولة إعادة الرسالة بعد قليل."
+                    )
 
         # 3) Persist turn + the shown cards so follow-ups can reference them.
         conversation_service.add_user_message(cid, message)

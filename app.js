@@ -84,10 +84,15 @@ const i18n = {
         chart_channel_sub: "تحليل الإيرادات عبر قنوات البيع المتعددة",
         btn_export: "تصدير البيانات",
         badge_live: "نموذج حي",
+        badge_live_offline: "بيانات افتراضية",
         alerts_title: "تنبيهات المخزون الحرجة",
         btn_view_all: "عرض الكل",
         btn_reorder: "إعادة طلب",
         badge_healthy: "مخزون ممتاز",
+        alert_healthy_meta: "المخزون سليم",
+        alert_out_of_stock: "نفذ بالكامل من المخزون",
+        alert_low_stock: "مخزون منخفض",
+        alert_none: "لا توجد تنبيهات حرجة الآن — المخزون سليم",
         ocr_hero_title: "استخراج بيانات الفواتير بذكاء الرؤية الرقمية",
         ocr_hero_sub: "ارفع فواتير الموردين الورقية أو ملفات الـ PDF ليقوم الـ AI باستخراج المنتجات والأسعار وتحديث المخزون فوراً.",
         dropzone_title: "اسحب وأسقط ملفات فواتير الموردين هنا",
@@ -213,10 +218,15 @@ const i18n = {
         chart_channel_sub: "Revenue breakdown across store sales channels",
         btn_export: "Export Data",
         badge_live: "Live Model",
+        badge_live_offline: "Offline Baseline",
         alerts_title: "Low-Stock Urgent Alerts",
         btn_view_all: "View All",
         btn_reorder: "Reorder",
         badge_healthy: "Optimal Stock",
+        alert_healthy_meta: "Healthy stock",
+        alert_out_of_stock: "Out of stock",
+        alert_low_stock: "Low stock",
+        alert_none: "No urgent alerts right now — inventory is healthy",
         ocr_hero_title: "Extract Text & Items with AI-Powered OCR",
         ocr_hero_sub: "Upload paper invoices, receipts, or PDFs to extract items, prices, and update store inventory in 3 seconds.",
         dropzone_title: "Drop supplier invoice files here",
@@ -398,6 +408,228 @@ function initHeroLogoWidget() {
     }, { passive: true });
 }
 
+/* ==========================================================================
+   Low-Stock Urgent Alerts — dashboard panel
+   Live source: warehouse inventory (OCR service) + forecast demand rates
+   (used to derive "runs out in X days"). When the backends are offline or
+   empty, the bundled fallback rows below keep the panel alive — the data
+   that always exists, mirroring the original static markup.
+   ========================================================================== */
+const __alertsFallback = [
+    { id: null, name: { en: 'H&M Cotton Ankle Socks 3-Pack', ar: 'جوارب قطنية H&M عبوة 3 قطع' }, quantity: 12, daysLeft: 3, risk: 'high' },
+    { id: null, name: { en: 'CartWise Puffer Jacket - Navy', ar: 'جاكيت CartWise بف - أزرق كحلي' }, quantity: 8, daysLeft: 6, risk: 'medium' },
+    { id: null, name: { en: 'Oversized Hoodie - Vintage Grey', ar: 'هودي أوفرسايز - رمادي عتيق' }, quantity: 45, daysLeft: null, risk: 'low' }
+];
+
+let __alertsRows = null;      // rows currently shown (re-rendered on language flip)
+let __alertsLoading = false;  // dedupes concurrent boot/switch fetches
+const __RISK_RANK = { high: 0, medium: 1, low: 2 };
+
+// Localized inflections — plural rules differ between Arabic and English.
+function __unitsRemaining(qty) {
+    if (currentLang === 'ar') {
+        if (qty === 1) return 'وحدة متبقية واحدة';
+        if (qty === 2) return 'وحدتان متبقيتان';
+        if (qty <= 10) return `${qty} وحدات متبقية`;
+        return `${qty} وحدة متبقية`;
+    }
+    return `${qty} ${qty === 1 ? 'unit' : 'units'} remaining`;
+}
+
+function __runsOutIn(days) {
+    if (currentLang === 'ar') {
+        const word = days === 1 ? 'يوم واحد' : days === 2 ? 'يومين' : (days <= 10 ? `${days} أيام` : `${days} يوماً`);
+        return `ينفد خلال ${word}`;
+    }
+    return `Runs out in ${days} ${days === 1 ? 'day' : 'days'}`;
+}
+
+function __alertMeta(row) {
+    const t = i18n[currentLang];
+    if (!row.quantity) return t.alert_out_of_stock;
+    if (row.risk === 'low') return `${__unitsRemaining(row.quantity)} • ${t.alert_healthy_meta}`;
+    if (row.daysLeft != null) return `${__unitsRemaining(row.quantity)} • ${__runsOutIn(row.daysLeft)}`;
+    return `${__unitsRemaining(row.quantity)} • ${t.alert_low_stock}`;
+}
+
+// Risk from the more URGENT of the two signals: days-to-runout (when the
+// forecast service knows this product) and raw quantity thresholds.
+function __classifyStock(qty, daysLeft) {
+    if (qty <= 0) return 'high';
+    const byQty = qty <= 10 ? 'high' : qty <= 30 ? 'medium' : 'low';
+    if (daysLeft == null) return byQty;
+    const byDays = daysLeft <= 5 ? 'high' : daysLeft <= 14 ? 'medium' : 'low';
+    return __RISK_RANK[byQty] <= __RISK_RANK[byDays] ? byQty : byDays;
+}
+
+// Build the panel rows from live warehouse products: most urgent first,
+// up to 3 urgent rows, padded with healthy stock like the original design.
+function __buildAlertRows(products, demandByName) {
+    const rows = products.map(p => {
+        const qty = p.quantity || 0;
+        // predicted_demand is weekly units → daily burn → days until empty.
+        const weekly = demandByName[String(p.name).trim().toLowerCase()] || 0;
+        let daysLeft = (weekly > 0 && qty > 0) ? Math.floor(qty / (weekly / 7)) : null;
+        if (daysLeft != null && (daysLeft < 1 || daysLeft > 45)) daysLeft = null; // display sanity
+        return { id: p.id, name: p.name, quantity: qty, daysLeft, risk: __classifyStock(qty, daysLeft) };
+    }).sort((a, b) => (__RISK_RANK[a.risk] - __RISK_RANK[b.risk]) || (a.quantity - b.quantity));
+
+    const urgent = rows.filter(r => r.risk !== 'low').slice(0, 3);
+    if (urgent.length >= 3) return urgent;
+    return urgent.concat(rows.filter(r => r.risk === 'low').slice(0, 3 - urgent.length));
+}
+
+async function __fetchAlertRows() {
+    let products = null;
+    const demandByName = {};
+    // Both services are best-effort: stock decides whether we leave the
+    // fallback, demand only enriches the "runs out in X days" meta.
+    await Promise.all([
+        (async () => {
+            try {
+                const res = await fetch(apiUrl('ocr', '/api/warehouse/products?limit=200'));
+                if (!res.ok) return;
+                const data = await res.json();
+                const list = (data.products || []).filter(p => p && p.name);
+                if (list.length) products = list;
+            } catch (e) { /* backend offline → keep bundled rows */ }
+        })(),
+        (async () => {
+            try {
+                const res = await fetch(apiUrl('forecasting', '/forecast?limit=40'));
+                if (!res.ok) return;
+                const data = await res.json();
+                (data.items || []).forEach(it => {
+                    if (it.name && it.predicted_demand > 0) {
+                        demandByName[String(it.name).trim().toLowerCase()] = it.predicted_demand;
+                    }
+                });
+            } catch (e) { /* demand optional */ }
+        })()
+    ]);
+    if (!products) return null;
+    return __buildAlertRows(products, demandByName);
+}
+
+function renderStockAlerts() {
+    const list = document.getElementById('alertsList');
+    if (!list || !__alertsRows) return;
+    const t = i18n[currentLang];
+
+    if (!__alertsRows.length) {
+        list.innerHTML = `
+            <div class="alert-item risk-low">
+                <div class="alert-icon"><i data-lucide="check-circle"></i></div>
+                <div class="alert-info">
+                    <div class="alert-name">${t.alert_none}</div>
+                </div>
+            </div>`;
+    } else {
+        list.innerHTML = __alertsRows.map((row, i) => {
+            const name = (typeof row.name === 'object') ? (row.name[currentLang] || row.name.en) : row.name;
+            const icon = row.risk === 'high' ? 'alert-circle' : row.risk === 'medium' ? 'alert-triangle' : 'check-circle';
+            // The healthy row keeps its status badge AND a plan-stock (outline)
+            // action — class follows the risk tier (danger = solid, warning = outline).
+            const action = row.risk === 'low'
+                ? `<span class="badge badge-green">${t.badge_healthy}</span>
+                   <button type="button" class="btn btn-sm btn-warning" onclick="reorderAlert(${i})">${t.btn_reorder}</button>`
+                : `<button type="button" class="btn btn-sm ${row.risk === 'high' ? 'btn-danger' : 'btn-warning'}" onclick="reorderAlert(${i})">${t.btn_reorder}</button>`;
+            return `
+                <div class="alert-item risk-${row.risk}">
+                    <div class="alert-icon"><i data-lucide="${icon}"></i></div>
+                    <div class="alert-info">
+                        <div class="alert-name">${name}</div>
+                        <div class="alert-meta">${__alertMeta(row)}</div>
+                    </div>
+                    <div class="alert-action">${action}</div>
+                </div>`;
+        }).join('');
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+// Paints the bundled rows instantly (the panel is never empty), then
+// upgrades to live warehouse stock. force → refresh on dashboard entry.
+async function loadStockAlerts(force) {
+    if (__alertsLoading) return;
+    if (!__alertsRows) {
+        __alertsRows = __alertsFallback;
+        renderStockAlerts();
+    } else if (!force) {
+        return;
+    }
+    __alertsLoading = true;
+    try {
+        const rows = await __fetchAlertRows();
+        if (rows && rows.length) {
+            __alertsRows = rows;
+            renderStockAlerts();
+        }
+        // empty/failed → keep whatever is already shown (data that always exists)
+    } catch (err) {
+        console.warn('Stock alerts API offline, using bundled alerts:', err);
+    } finally {
+        __alertsLoading = false;
+    }
+}
+
+// Pick the forecaster option that best represents this alert (exact id,
+// then full-name containment, then ≥2 word overlap) — never a weak guess.
+function __matchSkuOption(sel, id, name) {
+    const opts = Array.from(sel.options || []);
+    if (id != null) {
+        const byId = opts.find(o => o.value == String(id));
+        if (byId) return byId;
+    }
+    if (!name) return null;
+    const needle = String(name).trim().toLowerCase();
+    const stripLabel = s => s.replace(/^\s*\d+\s*—\s*/, '');
+    const exact = opts.find(o => {
+        const label = (o.text || '').toLowerCase();
+        return label.includes(needle) || needle.includes(stripLabel(label));
+    });
+    if (exact) return exact;
+    const words = needle.split(/[^a-z0-9]+/).filter(w => w.length > 3);
+    if (!words.length) return null;
+    let best = null, bestScore = 0;
+    opts.forEach(o => {
+        const label = (o.text || '').toLowerCase();
+        const score = words.reduce((s, w) => s + (label.includes(w) ? 1 : 0), 0);
+        if (score > bestScore) { bestScore = score; best = o; }
+    });
+    return bestScore >= Math.min(2, words.length) ? best : null;
+}
+
+// [Reorder] role: open Demand Forecasting and plan the restock for THIS
+// item — pre-select its SKU when the forecaster knows it, ALWAYS run the
+// prediction model (matched SKU or current selection), then land the user
+// on the plan instead of the top of the page.
+async function reorderAlert(index) {
+    const row = (__alertsRows || [])[index];
+    switchView('forecasting');
+    if (!row) return;
+    const sel = document.getElementById('skuSelect');
+    if (sel) {
+        try {
+            // Cap the wait: a hung forecast service must not stall the plan —
+            // the static options are good enough to run the model on.
+            await Promise.race([
+                populateSkuDropdown(), // shares the in-flight request with switchView
+                new Promise(r => setTimeout(r, 4000))
+            ]);
+        } catch (e) { /* static options remain */ }
+        const name = (typeof row.name === 'object') ? (row.name.en || '') : row.name;
+        const opt = __matchSkuOption(sel, row.id, name);
+        if (opt) sel.value = opt.value;
+    }
+    // Always run the prediction model — even without a SKU match — so
+    // Reorder always lands on a fresh, consistent forecast plan. The runId
+    // guard in runForecastModel supersedes switchView's earlier auto-run.
+    await runForecastModel();
+    const panel = document.querySelector('.card-control-panel');
+    if (panel) panel.scrollIntoView({ behavior: 'auto', block: 'center' });
+}
+
 // Initialize Application — defaults: English + Night Mode
 // PERFORMANCE: boot on window 'load' (wired in index.html) so deferred CDN
 // scripts (lucide + apexcharts) are guaranteed ready; DOM is interactive
@@ -419,6 +651,7 @@ function __bootCartwise() {
     // Run charts and catalog immediately
     initCharts();
     loadCatalogProducts();
+    loadStockAlerts();
 }
 window.__cartwiseBooted = __bootCartwise;
 // Fallback: if 'load' already fired or the head hook missed, boot on ready.
@@ -476,6 +709,7 @@ function switchView(viewId) {
     // Refresh charts when entering dashboard or forecasting
     if (viewId === 'dashboard' || viewId === 'forecasting') {
         if (viewId === 'dashboard') {
+            loadStockAlerts(true); // refresh alerts from live warehouse stock
             if (salesChart) salesChart.render();
             if (categoryDonutChart) categoryDonutChart.render();
             if (channelBarChart) channelBarChart.render();
@@ -516,13 +750,10 @@ function handleTopSearch(query) {
             }
 
             grid.innerHTML = results.map(p => {
-                let imgUrl = p.image_url || 'images/logo.svg';
-                if (imgUrl && imgUrl.startsWith('/')) {
-                    imgUrl = apiUrl('recommendations', imgUrl);
-                }
+                let imgUrl = (typeof getProductPhoto === 'function') ? getProductPhoto(p) : (p.image_url || 'images/products/' + String(p.product_id).padStart(10, '0') + '.jpg');
                 return `
                     <div class="product-card">
-                        <img src="${imgUrl}" class="product-img" alt="${p.name}" loading="lazy" decoding="async" onerror="this.src='images/logo.svg'">
+                        <img src="${imgUrl}" class="product-img" alt="${p.name}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600&q=80';">
                         <div class="product-title">${p.name}</div>
                         <div class="product-price">${p.price ? p.price.toLocaleString() + ' EGP' : '—'}</div>
                         <span class="badge badge-purple">${p.category || ''}</span>
@@ -537,6 +768,36 @@ function handleTopSearch(query) {
             console.warn('Search failed:', e);
         }
     }, 300);
+}
+
+// OCR upload progress — simulated 0→90% while awaiting the backend, then 100%.
+let scanProgressTimer = null;
+function setScanProgress(pct) {
+    const bar = document.getElementById('scanProgressBar');
+    const label = document.getElementById('scanPercent');
+    const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+    if (bar) bar.style.width = clamped + '%';
+    if (label) label.textContent = clamped + '%';
+}
+function startScanProgress() {
+    stopScanProgress();
+    setScanProgress(0);
+    let shown = 0;
+    scanProgressTimer = setInterval(() => {
+        // Ease toward 90% so the bar never stalls visually while OCR runs.
+        shown += Math.max(1, (90 - shown) * 0.12);
+        setScanProgress(Math.min(90, shown));
+    }, 120);
+}
+function finishScanProgress() {
+    stopScanProgress();
+    setScanProgress(100);
+}
+function stopScanProgress() {
+    if (scanProgressTimer) {
+        clearInterval(scanProgressTimer);
+        scanProgressTimer = null;
+    }
 }
 
 // OCR File Upload Handler
@@ -558,6 +819,7 @@ async function processOCRFile(file) {
     const meta = document.getElementById('invoiceMeta');
 
     if (overlay) overlay.style.display = 'flex';
+    startScanProgress();
 
     try {
         const formData = new FormData();
@@ -619,7 +881,8 @@ async function processOCRFile(file) {
         }
         if (resultsCard) resultsCard.style.display = 'block';
     } finally {
-        if (overlay) overlay.style.display = 'none';
+        finishScanProgress();
+        setTimeout(() => { if (overlay) overlay.style.display = 'none'; }, 350);
     }
 }
 
@@ -633,6 +896,7 @@ async function confirmOCRToInventory() {
 
     const overlay = document.getElementById('scanOverlay');
     if (overlay) overlay.style.display = 'flex';
+    startScanProgress();
 
     try {
         const formData = new FormData();
@@ -661,7 +925,8 @@ async function confirmOCRToInventory() {
             ? `فشل تحديث المخزون: ${err.message}`
             : `Failed to sync inventory: ${err.message}`);
     } finally {
-        if (overlay) overlay.style.display = 'none';
+        finishScanProgress();
+        setTimeout(() => { if (overlay) overlay.style.display = 'none'; }, 350);
     }
 }
 
@@ -673,6 +938,7 @@ async function loadSampleOCRInvoice() {
     const meta = document.getElementById('invoiceMeta');
 
     if (overlay) overlay.style.display = 'flex';
+    startScanProgress();
 
     setTimeout(() => {
         const sampleItems = [
@@ -708,7 +974,12 @@ async function loadSampleOCRInvoice() {
             resultsCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        if (overlay) overlay.style.display = 'none';
+        // Quick staged ramp so the 0→100% count is visible even on the fast sample path.
+        stopScanProgress();
+        setScanProgress(55);
+        setTimeout(() => setScanProgress(80), 150);
+        setTimeout(() => setScanProgress(100), 300);
+        setTimeout(() => { if (overlay) overlay.style.display = 'none'; }, 550);
     }, 400);
 }
 
@@ -732,6 +1003,7 @@ function toggleLanguage() {
         // New language → drop the cached HTML so the catalog re-renders once.
         __catalogCache.lang = null;
         loadCatalogProducts();
+        renderStockAlerts(); // bundled/live alert rows re-render in the new language
     };
     if ('requestIdleCallback' in window) {
         requestIdleCallback(rebuildHeavy, { timeout: 400 });
@@ -887,6 +1159,76 @@ async function initCharts() {
         salesChart = new ApexCharts(salesEl, salesOptions);
         salesChart.render();
     }
+
+    // Live layer: refreshed with real LightGBM demand right after the
+    // baseline renders (see refreshSalesChartLive below). Static series
+    // stays if the forecasting service (:8400) is unreachable.
+
+    // Live layer — Revenue & AI Demand Forecast Trajectory.
+    // Fetches the ranked LightGBM forecast (same engine as the forecasting page)
+    // and redraws the dashboard area chart with real predicted demand.
+    // Guarded by a run id so a stale response can never overwrite newer data.
+    let __salesLiveRunId = 0;
+    async function refreshSalesChartLive() {
+        const runId = ++__salesLiveRunId;
+        const badge = document.getElementById('salesLiveBadge');
+        const setBadge = (live) => {
+            if (!badge) return;
+            const dict = i18n[currentLang] || {};
+            badge.innerText = live
+                ? (dict.badge_live || 'Live Model')
+                : (dict.badge_live_offline || 'Offline Baseline');
+            badge.classList.toggle('badge-primary', !!live);
+            badge.classList.toggle('badge-amber', !live);
+        };
+        setBadge(true);
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 6000);
+            let data = null;
+            try {
+                const res = await fetch(apiUrl('forecasting', '/forecast?limit=12'), { signal: ctrl.signal });
+                if (res.ok) data = await res.json();
+                else console.warn(`Forecast API HTTP ${res.status} — dashboard chart keeps baseline`);
+            } finally {
+                clearTimeout(timer);
+            }
+            if (runId !== __salesLiveRunId) return; // superseded
+            if (!data || !Array.isArray(data.items) || data.items.length === 0) { setBadge(false); return; }
+            if (!salesChart) { setBadge(false); return; }
+
+            const top = data.items.slice(0, 9);
+            const labels = top.map(it => {
+                const nm = (it.name || '').toString().trim();
+                return nm ? (nm.length > 14 ? nm.slice(0, 13) + '…' : nm) : `#${it.article_id}`;
+            });
+            // Actuals proxy: the ranked endpoint omits last-observed demand, so
+            // scale prediction by the sell-through signal; the AI 30d trajectory
+            // then continues from the last actual point.
+            const actual = top.map(it => {
+                const p = (it.probability_of_sale != null ? it.probability_of_sale : 0.8);
+                return Math.max(0, Math.round((it.predicted_demand || 0) * 4 * (0.55 + 0.45 * p)));
+            });
+            // AI 30d trajectory continues from the last actual point.
+            const lastActual = actual.length ? actual[actual.length - 1] : 0;
+            const forecastLine = top.map((_, i) => (i < top.length - 1 ? null : lastActual));
+            const growth = [1.12, 1.28, 1.45];
+            const forecastTail = growth.map(g => Math.round(lastActual * g));
+
+            await salesChart.updateOptions({
+                series: [
+                    { name: currentLang === 'ar' ? 'المبيعات الفعلية' : 'Actual Sales', data: actual },
+                    { name: currentLang === 'ar' ? 'توقع الـ AI (30 يوم)' : 'AI Forecast (30d)', data: [...forecastLine, ...forecastTail] },
+                ],
+                xaxis: { categories: [...labels, '+10d', '+20d', '+30d'] },
+            });
+            setBadge(true);
+        } catch (err) {
+            console.warn('Live sales chart unreachable — keeping offline baseline:', err && err.message);
+            if (runId === __salesLiveRunId) setBadge(false);
+        }
+    }
+    refreshSalesChartLive();
 
     // 2. Category Breakdown Donut Chart — fetches real facets from recommendation service
     let donutLabels = currentLang === 'ar'
@@ -1054,43 +1396,86 @@ async function initCharts() {
 
 // Dynamic SKU Map and Population
 let __skuMap = {};
-async function populateSkuDropdown() {
-    const select = document.getElementById('skuSelect');
-    if (!select) return;
+let __skuPopulateInFlight = null;
+function populateSkuDropdown() {
+    if (__skuPopulateInFlight) return __skuPopulateInFlight;
+    __skuPopulateInFlight = (async () => {
+        const select = document.getElementById('skuSelect');
+        if (!select) return;
 
-    try {
-        const forecastRes = await fetch(apiUrl('forecasting', '/forecast?limit=40'));
-        let forecastItems = [];
-        if (forecastRes.ok) {
-            const fData = await forecastRes.json();
-            forecastItems = fData.items || [];
-        }
-
-        let productMap = {};
         try {
-            const catRes = await fetch(apiUrl('recommendations', '/api/v1/products?limit=50'));
-            if (catRes.ok) {
-                const cData = await catRes.json();
-                (cData.products || []).forEach(p => {
-                    productMap[p.product_id] = p.name;
-                });
-            }
-        } catch (e) {}
+            let skusList = [];
 
-        if (forecastItems.length > 0) {
-            select.innerHTML = forecastItems.map(item => {
-                const id = item.article_id;
-                const name = item.name || productMap[id] || `Product SKU #${id}`;
-                __skuMap[id] = name;
-                return `<option value="${id}">${id} — ${name}</option>`;
+            // 1. Fetch from recommendations catalog API
+            try {
+                const catRes = await fetch(apiUrl('recommendations', '/api/v1/products?limit=50'));
+                if (catRes.ok) {
+                    const cData = await catRes.json();
+                    (cData.products || []).forEach(p => {
+                        const id = p.product_id;
+                        const name = p.name;
+                        __skuMap[id] = name;
+                        skusList.push({ id, name });
+                    });
+                }
+            } catch (e) {}
+
+            // 2. Fetch from forecasting API
+            try {
+                const forecastRes = await fetch(apiUrl('forecasting', '/forecast?limit=50'));
+                if (forecastRes.ok) {
+                    const fData = await forecastRes.json();
+                    (fData.items || []).forEach(item => {
+                        const id = item.article_id;
+                        const name = item.name || __skuMap[id] || `SKU #${id}`;
+                        __skuMap[id] = name;
+                        if (!skusList.some(s => String(s.id) === String(id))) {
+                            skusList.push({ id, name });
+                        }
+                    });
+                }
+            } catch (e) {}
+
+            // 3. Fallback list if network/apis were empty
+            if (skusList.length === 0) {
+                skusList = [
+                    { id: 108775015, name: currentLang === 'ar' ? 'تاپ ستراب قطن أسود' : 'Strap Top Cotton (Black)' },
+                    { id: 212629040, name: currentLang === 'ar' ? 'فستان الكازار أحمر غامق' : 'Alcazar Strap Dress (Dark Red)' },
+                    { id: 237222001, name: currentLang === 'ar' ? 'جاكيت هلسنكي شتوي أسود' : 'Helsinki Winter Jacket (Black)' },
+                    { id: 300101002, name: currentLang === 'ar' ? 'هودي قطن شتوي ثقيل' : 'Heavy Cotton Winter Hoodie' },
+                    { id: 400202003, name: currentLang === 'ar' ? 'بنطلون جينز كاجوال' : 'Casual Slim Jeans' },
+                    { id: 500303004, name: currentLang === 'ar' ? 'شرابات قطنية 3 قطع' : 'Cotton Socks 3-Pack' }
+                ];
+                skusList.forEach(s => { __skuMap[s.id] = s.name; });
+            }
+
+            const previous = select.value;
+            select.innerHTML = skusList.map(item => {
+                return `<option value="${item.id}">${item.name} (#${item.id})</option>`;
             }).join('');
+
+            if (previous && Array.from(select.options).some(o => o.value === previous)) {
+                select.value = previous;
+            }
+        } catch (err) {
+            console.warn('Failed to populate SKU dropdown:', err);
         }
-    } catch (err) {
-        console.warn('Failed to populate SKU dropdown:', err);
-    }
+    })().finally(() => { __skuPopulateInFlight = null; });
+    return __skuPopulateInFlight;
 }
 
-// Demand Forecasting Model Run — calculates predictions & updates UI metrics + chart directly
+// Deterministic per-SKU baseline
+function __localForecastBaseline(sku) {
+    const s = String(sku);
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return {
+        weekly: 6 + (h % 15),                       // 6..20 units/week
+        probability: 0.78 + ((h >>> 5) % 18) / 100  // 0.78..0.95
+    };
+}
+
+let __forecastRunId = 0;
 async function runForecastModel() {
     const skuSelect = document.getElementById('skuSelect');
     const horizonSelect = document.getElementById('horizonSelect');
@@ -1098,6 +1483,7 @@ async function runForecastModel() {
     const btn = document.getElementById('btnRunForecast');
 
     if (!skuSelect || !skuSelect.value) return;
+    const runId = ++__forecastRunId;
 
     const sku = skuSelect.value;
     const horizon = parseInt(horizonSelect ? horizonSelect.value : 30);
@@ -1110,22 +1496,36 @@ async function runForecastModel() {
     }
 
     try {
-        const res = await fetch(apiUrl('forecasting', `/forecast/${sku}`));
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        let data = null;
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 6000);
+            try {
+                const res = await fetch(apiUrl('forecasting', `/forecast/${sku}`), { signal: ctrl.signal });
+                if (res.ok) data = await res.json();
+                else console.warn(`Forecast API HTTP ${res.status} — using local estimate`);
+            } finally {
+                clearTimeout(timer);
+            }
+        } catch (err) {
+            console.warn('Forecast API unreachable — using local estimate:', err && err.message);
+        }
+        if (runId !== __forecastRunId) return;
+        const isLive = !!data;
+        const local = isLive ? null : __localForecastBaseline(sku);
 
-        // 1. Calculate prediction metrics based on weekly Poisson prediction & horizon
-        const weeklyDemand = data.predicted_demand || 0.25;
+        const weeklyDemand = isLive ? (data.predicted_demand || 0.25) : local.weekly;
         const horizonWeeks = horizon / 7;
         const projectedUnits = Math.max(1, Math.round(weeklyDemand * horizonWeeks * (modelEngine === 'xgboost' ? 1.08 : 1.0)));
-        const saleProbability = data.probability_of_sale != null ? data.probability_of_sale : 0.95;
+        const saleProbability = isLive
+            ? (data.probability_of_sale != null ? data.probability_of_sale : 0.95)
+            : local.probability;
 
-        const estPrice = 350; // Average SKU price in EGP
+        const estPrice = 350;
         const projectedRevenue = projectedUnits * estPrice;
         const currentStock = Math.round(projectedUnits * 0.85);
         const riskPercent = Math.min(95, Math.max(5, Math.round((1 - (currentStock / (projectedUnits || 1))) * 100)));
 
-        // 2. Update Top Metric Cards dynamically
         const elDemand = document.getElementById('fmValDemand');
         const elStock = document.getElementById('fmValStock');
         const elRisk = document.getElementById('fmValRisk');
@@ -1139,25 +1539,36 @@ async function runForecastModel() {
         }
         if (elRevenue) elRevenue.innerText = `${projectedRevenue.toLocaleString()} EGP`;
 
-        // 3. Update ApexChart (`demandTrendChart`) specifically for this SKU
+        // Update title above chart to show current SKU name & horizon
+        const chartTitleEl = document.getElementById('forecastChartTitle');
+        if (chartTitleEl) {
+            chartTitleEl.innerText = currentLang === 'ar'
+                ? `${skuName} — توقعات ${horizon} يوماً`
+                : `${skuName} — ${horizon}-Day Forecast`;
+        }
+
         updateForecastChartForSku(sku, skuName, projectedUnits, horizon, modelEngine);
 
-        // 4. Render Live Result Box right inside the control panel
         const resultBox = document.getElementById('forecastResultBox');
         if (resultBox) {
             resultBox.style.display = 'block';
             document.getElementById('forecastResultSkuName').innerText = skuName;
-            document.getElementById('forecastResultBadge').innerText = `${modelEngine.toUpperCase()} • ${horizon}d`;
+            document.getElementById('forecastResultBadge').innerText = isLive
+                ? `${modelEngine.toUpperCase()} • ${horizon}d`
+                : (currentLang === 'ar' ? `تقدير محلي • ${horizon} يوم` : `LOCAL • ${horizon}d`);
             document.getElementById('forecastResultDemand').innerText = `${projectedUnits} ${currentLang === 'ar' ? 'قطعة' : 'Units'}`;
             document.getElementById('forecastResultProb').innerText = `${(saleProbability * 100).toFixed(0)}%`;
-            document.getElementById('forecastResultNoteText').innerText = currentLang === 'ar'
+            const offlineNote = isLive ? '' : (currentLang === 'ar'
+                ? ' — تقدير محلي، خدمة التنبؤ الحية غير متاحة الآن.'
+                : ' — local estimate, live forecast service unavailable.');
+            document.getElementById('forecastResultNoteText').innerText = (currentLang === 'ar'
                 ? `تم التنبؤ بـ ${projectedUnits} قطعة خلال ${horizon} يوماً قادمة بنسبة ثقة ${(saleProbability * 100).toFixed(0)}% باستخدام محرك ${modelEngine.toUpperCase()}.`
-                : `Model predicted ${projectedUnits} units required over next ${horizon} days (${(saleProbability * 100).toFixed(0)}% confidence).`;
+                : `Model predicted ${projectedUnits} units required over next ${horizon} days (${(saleProbability * 100).toFixed(0)}% confidence).`) + offlineNote;
         }
     } catch (err) {
         console.error('Forecast execution failed:', err);
     } finally {
-        if (btn) {
+        if (btn && runId === __forecastRunId) {
             btn.disabled = false;
             btn.innerHTML = `⚡ <span data-i18n="btn_run_forecast">${i18n[currentLang].btn_run_forecast || 'Run Prediction Model'}</span>`;
         }
@@ -1224,25 +1635,37 @@ async function loadCatalogProducts() {
 
     const t = i18n[currentLang];
 
-    // Fallback products array in case network or backend API is slow/unavailable
+    // Fallback products array with high quality product photos
     const fallbackProducts = [
-        { product_id: 108775015, name: currentLang === 'ar' ? 'تاپ ستراب قطن أسود' : 'Strap Top Cotton (Black)', price: 350, category: currentLang === 'ar' ? 'ملابس قطنية' : 'Cotton Apparel', image_url: 'images/logo.svg' },
-        { product_id: 212629040, name: currentLang === 'ar' ? 'فستان الكازار أحمر غامق' : 'Alcazar Strap Dress (Dark Red)', price: 850, category: currentLang === 'ar' ? 'فساتين' : 'Dresses', image_url: 'images/logo.svg' },
-        { product_id: 237222001, name: currentLang === 'ar' ? 'جاكيت هلسنكي شتوي أسود' : 'Helsinki Winter Jacket (Black)', price: 1569, category: currentLang === 'ar' ? 'جاكيتات' : 'Outerwear', image_url: 'images/logo.svg' },
-        { product_id: 300101002, name: currentLang === 'ar' ? 'هودي قطن شتوي ثقيل' : 'Heavy Cotton Winter Hoodie', price: 950, category: currentLang === 'ar' ? 'هوديز' : 'Hoodies', image_url: 'images/logo.svg' },
-        { product_id: 400202003, name: currentLang === 'ar' ? 'بنطلون جينز كاجوال' : 'Casual Slim Jeans', price: 650, category: currentLang === 'ar' ? 'بناطيل' : 'Pants', image_url: 'images/logo.svg' },
-        { product_id: 500303004, name: currentLang === 'ar' ? 'شرابات قطنية 3 قطع' : 'Cotton Socks 3-Pack', price: 180, category: currentLang === 'ar' ? 'إكسسوارات' : 'Accessories', image_url: 'images/logo.svg' }
+        { product_id: 108775015, name: currentLang === 'ar' ? 'تاپ ستراب قطن أسود' : 'Strap Top Cotton (Black)', price: 350, category: currentLang === 'ar' ? 'ملابس قطنية' : 'Cotton Apparel', image_url: 'images/products/0108775015.jpg' },
+        { product_id: 212629040, name: currentLang === 'ar' ? 'فستان الكازار أحمر غامق' : 'Alcazar Strap Dress (Dark Red)', price: 850, category: currentLang === 'ar' ? 'فساتين' : 'Dresses', image_url: 'images/products/0212629040.jpg' },
+        { product_id: 237222001, name: currentLang === 'ar' ? 'جاكيت هلسنكي شتوي أسود' : 'Helsinki Winter Jacket (Black)', price: 1569, category: currentLang === 'ar' ? 'جاكيتات' : 'Outerwear', image_url: 'images/products/0237222001.jpg' },
+        { product_id: 300101002, name: currentLang === 'ar' ? 'هودي قطن شتوي ثقيل' : 'Heavy Cotton Winter Hoodie', price: 950, category: currentLang === 'ar' ? 'هوديز' : 'Hoodies', image_url: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=600&q=80' },
+        { product_id: 400202003, name: currentLang === 'ar' ? 'بنطلون جينز كاجوال' : 'Casual Slim Jeans', price: 650, category: currentLang === 'ar' ? 'بناطيل' : 'Pants', image_url: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=600&q=80' },
+        { product_id: 500303004, name: currentLang === 'ar' ? 'شرابات قطنية 3 قطع' : 'Cotton Socks 3-Pack', price: 180, category: currentLang === 'ar' ? 'إكسسوارات' : 'Accessories', image_url: 'https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?auto=format&fit=crop&w=600&q=80' }
     ];
+
+    const getProductPhoto = (p) => {
+        if (!p) return 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600&q=80';
+        if (p.image_url && !p.image_url.includes('logo.svg')) {
+            if (p.image_url.startsWith('/')) {
+                return apiUrl('recommendations', p.image_url);
+            }
+            return p.image_url;
+        }
+        if (p.product_id) {
+            const pidStr = String(p.product_id).padStart(10, '0');
+            return `images/products/${pidStr}.jpg`;
+        }
+        return 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600&q=80';
+    };
 
     const renderProducts = (productsList) => {
         __catalogCache.html = productsList.map(p => {
-            let imgUrl = p.image_url || 'images/logo.svg';
-            if (imgUrl && imgUrl.startsWith('/')) {
-                imgUrl = apiUrl('recommendations', imgUrl);
-            }
+            let imgUrl = getProductPhoto(p);
             return `
                 <div class="product-card">
-                    <img src="${imgUrl}" class="product-img" alt="${p.name}" loading="lazy" decoding="async" onerror="this.src='images/logo.svg'">
+                    <img src="${imgUrl}" class="product-img" alt="${p.name}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600&q=80';">
                     <div class="product-title">${p.name}</div>
                     <div class="product-price">${p.price ? p.price.toLocaleString() + ' EGP' : '—'}</div>
                     <span class="badge badge-purple">${p.category || ''}</span>

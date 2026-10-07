@@ -32,7 +32,11 @@ load_dotenv()
 # configuration
 # --------------------------------------------------------------------------
 
-SQLITE_PATH = Path(os.getenv("SQLITE_PATH", "output/inventory.db"))
+_BASE_DIR = Path(__file__).resolve().parent
+_DEFAULT_SQLITE = _BASE_DIR / "output" / "inventory.db"
+SQLITE_PATH = Path(os.getenv("SQLITE_PATH", str(_DEFAULT_SQLITE)))
+if not SQLITE_PATH.is_absolute():
+    SQLITE_PATH = (_BASE_DIR / SQLITE_PATH).resolve()
 
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")

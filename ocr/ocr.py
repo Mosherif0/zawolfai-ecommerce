@@ -42,12 +42,25 @@ _reader = None
 
 
 def _get_reader(lang=None):
-    """Build the EasyOCR Reader once, lazily."""
+    """Build the EasyOCR Reader once, lazily with auto-recovery for corrupt cache."""
     global _reader
     if _reader is None:
         import easyocr
 
-        _reader = easyocr.Reader(_languages_for())
+        try:
+            _reader = easyocr.Reader(_languages_for(), download_enabled=True, verbose=False)
+        except Exception:
+            # Clear corrupt ~/.EasyOCR/model files automatically
+            model_dir = os.path.expanduser("~/.EasyOCR/model")
+            if os.path.exists(model_dir):
+                for f in os.listdir(model_dir):
+                    fp = os.path.join(model_dir, f)
+                    if os.path.isfile(fp):
+                        try:
+                            os.remove(fp)
+                        except Exception:
+                            pass
+            _reader = easyocr.Reader(_languages_for(), download_enabled=True, verbose=False)
     return _reader
 
 

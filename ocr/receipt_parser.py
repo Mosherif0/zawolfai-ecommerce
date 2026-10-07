@@ -336,21 +336,17 @@ def extract_price(text):
 def extract_quantity(text):
 
     # IMPORTANT:
-    #
-    # This logic intentionally follows the original
-    # parser logic.
-    #
-    # Do NOT treat numbers inside product names
-    # such as:
-    #
-    #     6FT HDMI CABLE
-    #
-    # as quantity.
-    #
-    # Quantity must be followed by:
-    #     whitespace
-    #     x
-    #     hyphen
+    # Do NOT treat numbers inside product names such as "6FT HDMI CABLE" as quantity.
+
+    # Check explicit unit/qty markers: "3.00 unit", "1.00 unit", "2 x", "1 قطعة"
+    unit_match = re.search(r"\b(\d+)(?:\.00)?\s*(?:unit|units|x|\*|قطعة|حبة|علبة)\b", text, flags=re.IGNORECASE)
+    if unit_match:
+        try:
+            val = int(unit_match.group(1))
+            if 1 <= val <= 999:
+                return val
+        except ValueError:
+            pass
 
     match = re.match(
         r"^\s*(\d+)(?=\s+|x\b|-)",
@@ -424,13 +420,17 @@ def remove_price(text):
     )
 
     # -----------------------------------------
+    # Unit keywords and table hash fillers
+    # -----------------------------------------
+    text = re.sub(
+        r"\bunit\b|\bunits\b|#+",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # -----------------------------------------
     # Quantity marker at the end
-    #
-    # Example:
-    #     SOCKS 3X
-    #
-    # Only the explicit X marker is removed here.
-    # We do NOT remove arbitrary numbers.
     # -----------------------------------------
 
     text = re.sub(
@@ -474,7 +474,7 @@ def remove_price(text):
     # -----------------------------------------
 
     text = re.sub(
-        r"^[#*/\-\s]+(?=[A-Za-z])",
+        r"^[#*/\-\s]+(?=[A-Za-z\u0600-\u06FF])",
         "",
         text
     )
@@ -771,9 +771,9 @@ def parse_rows(rows):
                 continue
 
             if sum(
-                char.isalpha()
+                char.isalnum()
                 for char in name
-            ) < 3:
+            ) < 2:
                 continue
 
             if (
