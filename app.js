@@ -915,7 +915,14 @@ async function confirmOCRToInventory() {
         }
 
         const data = await res.json();
+        if (!data.ok) {
+            throw new Error(data.message || 'OCR save failed');
+        }
+
         const saved = (data.saved || []).length;
+        if (saved === 0) {
+            throw new Error(data.message || (currentLang === 'ar' ? 'لم يتم حفظ أي أصناف' : 'No items were saved'));
+        }
 
         alert(currentLang === 'ar'
             ? `تمت مطابقة المستند وتحديث مخزون المتجر بنجاح 🚀 (${saved} صنف أضيف للمخزون)`
@@ -1890,3 +1897,10 @@ function resetChatHistory() {
     const stream = document.getElementById('chatStream');
     stream.innerHTML = `<div class="msg-bubble bot-msg"><p>${i18n[currentLang].chat_welcome}</p></div>`;
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const syncButton = document.querySelector('#ocrResultsCard button.btn-emerald');
+    if (!syncButton) return;
+    syncButton.removeAttribute('onclick');
+    syncButton.addEventListener('click', confirmOCRToInventory);
+}, { once: true });

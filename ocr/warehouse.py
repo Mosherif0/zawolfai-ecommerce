@@ -15,12 +15,14 @@ The implementation intentionally does not depend on:
 from __future__ import annotations
 
 import os
+import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from dotenv import load_dotenv
+import psycopg
 
 import schema as schema_mod
 
@@ -38,10 +40,13 @@ SQLITE_PATH = Path(os.getenv("SQLITE_PATH", str(_DEFAULT_SQLITE)))
 if not SQLITE_PATH.is_absolute():
     SQLITE_PATH = (_BASE_DIR / SQLITE_PATH).resolve()
 
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT")
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
+# pgAdmin's existing PostgreSQL connection is localhost:5432 as postgres.
+# Default the warehouse to the existing inventory database; credentials may
+# still be supplied by the process environment.
+DB_HOST = os.getenv("DB_HOST") or "localhost"
+DB_PORT = os.getenv("DB_PORT") or "5432"
+DB_NAME = "inventory_db"
+DB_USER = os.getenv("DB_USER") or "postgres"
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 
@@ -79,15 +84,22 @@ def connection():
     """Open a database connection and close it afterwards."""
 
     if using_postgres():
-        conn = schema_mod.postgres_connect(
-            DB_HOST,
-            DB_PORT,
-            DB_NAME,
-            DB_USER,
-            DB_PASSWORD,
+        # Connect directly: schema_mod.postgres_connect applies DDL, while
+        # this warehouse must use the already-created public tables as-is.
+        conn = psycopg.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            options="-c search_path=public",
         )
     else:
-        conn = schema_mod.sqlite_connect(SQLITE_PATH)
+        # Do not run the current DDL against an existing legacy warehouse.
+        # CREATE INDEX on receipt_id fails when receipt_items uses source_file.
+        SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(SQLITE_PATH))
+        conn.row_factory = sqlite3.Row
 
     try:
         yield conn
@@ -147,6 +159,19 @@ def _inserted_id(cur, table: str) -> int:
     return int(cur.lastrowid)
 
 
+def _table_columns(conn, table: str) -> set[str]:
+    """Return the columns that exist without changing the database."""
+    if using_postgres():
+        return {
+            row["column"]
+            for row in schema_mod.describe(conn, "postgres")
+            if row["table"] == table
+        }
+    with cursor(conn) as cur:
+        cur.execute(f"PRAGMA table_info({table})")
+        return {row[1] for row in cur.fetchall()}
+
+
 # --------------------------------------------------------------------------
 # lookup helpers
 # --------------------------------------------------------------------------
@@ -160,18 +185,13 @@ def find_product(
     p = ph()
 
     with cursor(conn) as cur:
+        columns = _table_columns(conn, "products")
+        selected = [
+            column for column in ("id", "name", "price", "quantity", "created_at", "updated_at")
+            if column in columns
+        ]
         cur.execute(
-            f"""
-            SELECT
-                id,
-                name,
-                price,
-                quantity,
-                created_at,
-                updated_at
-            FROM products
-            WHERE name = {p}
-            """,
+            f"SELECT {', '.join(selected)} FROM products WHERE name = {p}",
             (name,),
         )
 
@@ -342,6 +362,7 @@ def record_receipt(
                         # create new product
                         # --------------------------------------------------
 
+                        product_columns = _table_columns(conn, "products")
                         if using_postgres():
 
                             cur.execute(
@@ -366,25 +387,20 @@ def record_receipt(
                             )
 
                         else:
-
+                            values = {
+                                "name": name,
+                                "price": price,
+                                "quantity": qty,
+                                "created_at": now,
+                                "updated_at": now,
+                            }
+                            insert_columns = [
+                                key for key in values if key in product_columns
+                            ]
+                            placeholders = ", ".join([p] * len(insert_columns))
                             cur.execute(
-                                f"""
-                                INSERT INTO products (
-                                    name,
-                                    price,
-                                    quantity,
-                                    created_at,
-                                    updated_at
-                                )
-                                VALUES ({p}, {p}, {p}, {p}, {p})
-                                """,
-                                (
-                                    name,
-                                    price,
-                                    qty,
-                                    now,
-                                    now,
-                                ),
+                                f"INSERT INTO products ({', '.join(insert_columns)}) VALUES ({placeholders})",
+                                tuple(values[key] for key in insert_columns),
                             )
 
                         product_id = _inserted_id(
@@ -398,22 +414,23 @@ def record_receipt(
                     # store receipt item
                     # ------------------------------------------------------
 
+                    item_columns = _table_columns(conn, "receipt_items")
+                    values = {
+                        "receipt_id": receipt_id,
+                        "source_file": source_file,
+                        "product_id": product_id,
+                        "name": name,
+                        "quantity": qty,
+                        "price": price,
+                        "created_at": now,
+                    }
+                    insert_columns = [
+                        key for key in values if key in item_columns
+                    ]
+                    placeholders = ", ".join([p] * len(insert_columns))
                     cur.execute(
-                        f"""
-                        INSERT INTO receipt_items (
-                            receipt_id,
-                            product_id,
-                            quantity,
-                            price
-                        )
-                        VALUES ({p}, {p}, {p}, {p})
-                        """,
-                        (
-                            receipt_id,
-                            product_id,
-                            qty,
-                            price,
-                        ),
+                        f"INSERT INTO receipt_items ({', '.join(insert_columns)}) VALUES ({placeholders})",
+                        tuple(values[key] for key in insert_columns),
                     )
 
                     result["items"].append(
