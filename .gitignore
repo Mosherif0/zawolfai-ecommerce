@@ -48,3 +48,5 @@ test_api.py
 .kilo/
 cartwise-frontend/
 ocr/input/sample_invoice.txt
+outputs/
+.work/

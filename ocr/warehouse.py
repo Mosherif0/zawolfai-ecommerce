@@ -43,7 +43,7 @@ if not SQLITE_PATH.is_absolute():
 # pgAdmin's existing PostgreSQL connection is localhost:5432 as postgres.
 # Default the warehouse to the existing inventory database; credentials may
 # still be supplied by the process environment.
-DB_HOST = os.getenv("DB_HOST") or "localhost"
+DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT") or "5432"
 DB_NAME = "inventory_db"
 DB_USER = os.getenv("DB_USER") or "postgres"
