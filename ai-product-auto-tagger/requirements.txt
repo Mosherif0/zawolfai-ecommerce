@@ -1,0 +1,8 @@
+
+numpy==2.5.4
+torch==2.14.1
+torchvision==0.29.1
+Pillow==13.0.0
+fashn-human-parser==0.1.1
+transformers==5.20.2
+requests==2.34.2

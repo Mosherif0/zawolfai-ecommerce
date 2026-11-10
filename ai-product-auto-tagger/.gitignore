@@ -1,0 +1,29 @@
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Model weights
+*.pt
+*.pth
+*.onnx
+
+# Experiments and temporary files
+runs/
+experiments/
+segment_clothing_backup.py
+
+# Generated results
+results/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
